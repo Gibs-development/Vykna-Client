@@ -522,12 +522,7 @@ public class Client extends RSApplet {
 	public int worldViewportHeight = 338;
 
 	private void updateGameScreen() {
-		if (getUserSettings().isAntiAliasing()) {
-			antialiasingPixels = new int[Client.worldViewportWidth * worldViewportHeight << 2];
-			antialiasingDepth  = new float[Client.worldViewportWidth * worldViewportHeight << 2];
-		}
-		Rasterizer.method365(Client.worldViewportWidth << 1, worldViewportHeight << 1);
-		antialiasingOffsets = Rasterizer.anIntArray1472;
+		antiAliasingPostBuffer = null;
 		Rasterizer.method365(worldViewportHeight, worldViewportHeight);
 		Rasterizer.method365(worldViewportWidth, worldViewportHeight);
 		this.fullScreenTextureArray = Rasterizer.anIntArray1472;
@@ -18589,9 +18584,7 @@ public class Client extends RSApplet {
 
 	public static int cameraZoom = 600;
 
-	public static int[] antialiasingPixels;
-	public static int[] antialiasingOffsets;
-	public static float[] antialiasingDepth;
+	private static int[] antiAliasingPostBuffer;
 
     public void render3dWorld() {
         anInt1265++;
@@ -18665,154 +18658,37 @@ public class Client extends RSApplet {
         Model.anInt1685 = super.getMouseX() - 4;
         Model.anInt1686 = super.getMouseY() - 4;
 
-        // ---- Anti-aliasing swap (safe + complete) ----
         final boolean aa = getUserSettings().isAntiAliasing();
 
-        // Save original raster state
-        final int[] savedRasterPixels = Rasterizer.pixels;
-        final int[] savedDrawingPixels = DrawingArea.pixels;
-        final int[] savedLineOffsets = Rasterizer.anIntArray1472;
+        com.client.features.particles.ParticlePostPass.beginFrame();
 
-        final int savedBottomX = Rasterizer.bottomX;
-        final int savedBottomY = Rasterizer.bottomY;
+        // Ensure depth writing is enabled for the scene
+        Rasterizer.saveDepth = true;
 
-        final int savedWidth = DrawingArea.width;
-        final int savedHeight = DrawingArea.height;
-        final int savedCenterX = DrawingArea.centerX;
-        final int savedCenterY = DrawingArea.centerY;
-        final int savedAnInt1387 = DrawingArea.anInt1387;
-
-        final int savedTex1 = Rasterizer.textureInt1;
-        final int savedTex2 = Rasterizer.textureInt2;
-
-        final int savedFocal = WorldController.focalLength;
-        final float[] savedDepth = Rasterizer.depthBuffer;
-        final float[] savedDrawingDepth = DrawingArea.depthBuffer;
-
-        if (aa) {
-            ensureAntiAliasingBuffers(savedWidth, savedHeight);
-
-            // Double input-space mouse + focal
-            Model.anInt1685 <<= 1;
-            Model.anInt1686 <<= 1;
-            WorldController.focalLength = savedFocal << 1;
-
-            // Swap pixels + line offsets for AA buffer
-            Rasterizer.pixels = antialiasingPixels;
-            DrawingArea.pixels = antialiasingPixels;
-            Rasterizer.anIntArray1472 = antialiasingOffsets;
-
-            // Switch depth buffer to AA-sized buffer
-            Rasterizer.depthBuffer = antialiasingDepth;
-            DrawingArea.depthBuffer = antialiasingDepth;
-
-            // Double raster bounds + drawing dimensions
-            Rasterizer.bottomX = savedBottomX << 1;
-            Rasterizer.bottomY = savedBottomY << 1;
-
-            DrawingArea.width = savedWidth << 1;
-            DrawingArea.height = savedHeight << 1;
-            DrawingArea.centerX = savedCenterX << 1;
-            DrawingArea.centerY = savedCenterY << 1;
-            DrawingArea.anInt1387 = savedAnInt1387 << 1;
-
-            Rasterizer.textureInt1 = savedTex1 << 1;
-            Rasterizer.textureInt2 = savedTex2 << 1;
-        } else {
-            // leave focalLength alone here; restoring savedFocal in finally keeps it stable
+        // Clear whichever depth buffer is currently active (AA or non-AA)
+        final float[] db = (Rasterizer.depthBuffer != null) ? Rasterizer.depthBuffer : DrawingArea.depthBuffer;
+        if (db != null) {
+            final float clear = getUserSettings().isFog()
+                    ? (WorldController.farZ * 90f + 1800f)
+                    : Float.POSITIVE_INFINITY;
+            java.util.Arrays.fill(db, clear);
         }
 
-        try {
-            com.client.features.particles.ParticlePostPass.beginFrame();
+        DrawingArea.setAllPixelsToZero();
 
-            // Ensure depth writing is enabled for the scene
-            Rasterizer.saveDepth = true;
+        worldController.draw(xCameraPos, yCameraPos, xCameraCurve, zCameraPos, j, yCameraCurve);
 
-            // Clear whichever depth buffer is currently active (AA or non-AA)
-            final float[] db = (Rasterizer.depthBuffer != null) ? Rasterizer.depthBuffer : DrawingArea.depthBuffer;
-            if (db != null) {
-                final float clear = getUserSettings().isFog()
-                        ? (WorldController.farZ * 90f + 1800f)
-                        : Float.POSITIVE_INFINITY;
-                java.util.Arrays.fill(db, clear);
-            }
-
-            DrawingArea.setAllPixelsToZero();
-
-            worldController.draw(xCameraPos, yCameraPos, xCameraCurve, zCameraPos, j, yCameraCurve);
-
-            if (getUserSettings().isFog()) {
-                currentFog = 0;
-                int begin = WorldController.farZ * 90;
-                Rasterizer.drawFog(SettingsManager.DEFAULT_FOG_COLOR, begin, begin + 1800);
-            }
-
-            // Draw particles AFTER the whole scene has populated the depth buffer
-            com.client.features.particles.ParticlePostPass.flush();
-
-        } finally {
-            // Restore always (even if draw crashes)
-            if (aa) {
-                Model.anInt1685 >>= 1;
-                Model.anInt1686 >>= 1;
-            }
-
-            // Restore depth buffers
-            Rasterizer.depthBuffer = savedDepth;
-            DrawingArea.depthBuffer = savedDrawingDepth;
-
-            // Restore focal length back to what it was before AA swap
-            WorldController.focalLength = savedFocal;
-
-            // Restore raster state
-            Rasterizer.pixels = savedRasterPixels;
-            DrawingArea.pixels = savedDrawingPixels;
-            Rasterizer.anIntArray1472 = savedLineOffsets;
-
-            Rasterizer.bottomX = savedBottomX;
-            Rasterizer.bottomY = savedBottomY;
-
-            DrawingArea.width = savedWidth;
-            DrawingArea.height = savedHeight;
-            DrawingArea.centerX = savedCenterX;
-            DrawingArea.centerY = savedCenterY;
-            DrawingArea.anInt1387 = savedAnInt1387;
-
-            Rasterizer.textureInt1 = savedTex1;
-            Rasterizer.textureInt2 = savedTex2;
+        if (getUserSettings().isFog()) {
+            currentFog = 0;
+            int begin = WorldController.farZ * 90;
+            Rasterizer.drawFog(SettingsManager.DEFAULT_FOG_COLOR, begin, begin + 1800);
         }
 
-        // ---- Downsample AA buffer into normal buffer ----
+        // Draw particles AFTER the whole scene has populated the depth buffer
+        com.client.features.particles.ParticlePostPass.flush();
+
         if (aa) {
-            final int outW = DrawingArea.width;
-            final int outH = DrawingArea.height;
-            final int aaW = outW << 1;
-
-            for (int y = 0; y < outH; y++) {
-                final int y2 = y << 1;
-                final int row0 = y2 * aaW;
-                final int row1 = (y2 + 1) * aaW;
-                final int outRow = y * outW;
-
-                for (int x = 0; x < outW; x++) {
-                    final int x2 = x << 1;
-
-                    int c1 = antialiasingPixels[row0 + x2];
-                    int c2 = antialiasingPixels[row0 + x2 + 1];
-                    int c3 = antialiasingPixels[row1 + x2];
-                    int c4 = antialiasingPixels[row1 + x2 + 1];
-
-                    int r = ((c1 >> 16) & 0xFF) + ((c2 >> 16) & 0xFF) + ((c3 >> 16) & 0xFF) + ((c4 >> 16) & 0xFF);
-                    int g = ((c1 >> 8) & 0xFF) + ((c2 >> 8) & 0xFF) + ((c3 >> 8) & 0xFF) + ((c4 >> 8) & 0xFF);
-                    int b = (c1 & 0xFF) + (c2 & 0xFF) + (c3 & 0xFF) + (c4 & 0xFF);
-
-                    r >>= 2;
-                    g >>= 2;
-                    b >>= 2;
-
-                    DrawingArea.pixels[outRow + x] = (r << 16) | (g << 8) | b;
-                }
-            }
+            applyFastAntiAliasing(DrawingArea.pixels, DrawingArea.width, DrawingArea.height);
         }
 
         worldController.clearObj5Cache();
@@ -18848,27 +18724,64 @@ public class Client extends RSApplet {
         yCameraCurve = k1;
         xCameraCurve = l1;
     }
-
-
-
-
-	private void ensureAntiAliasingBuffers(int baseW, int baseH) {
-		final int aaW = baseW << 1;
-		final int aaH = baseH << 1;
-
-		final int neededPixels = aaW * aaH;
-		if (antialiasingPixels == null || antialiasingPixels.length < neededPixels) {
-			antialiasingPixels = new int[neededPixels];
+	private void applyFastAntiAliasing(int[] pixels, int width, int height) {
+		if (pixels == null || width < 3 || height < 3) {
+			return;
 		}
 
-		if (antialiasingOffsets == null || antialiasingOffsets.length < aaH) {
-			antialiasingOffsets = new int[aaH];
+		final int length = width * height;
+		if (antiAliasingPostBuffer == null || antiAliasingPostBuffer.length < length) {
+			antiAliasingPostBuffer = new int[length];
 		}
 
-		// Fill scanline offsets for the AA buffer
-		for (int y = 0; y < aaH; y++) {
-			antialiasingOffsets[y] = y * aaW;
+		System.arraycopy(pixels, 0, antiAliasingPostBuffer, 0, length);
+
+		final int lumaThreshold = 20;
+		final int step = (currentScreenMode == ScreenMode.RESIZABLE && (width * height) >= (900 * 600)) ? 2 : 1;
+
+		for (int y = 1; y < height - 1; y += step) {
+			int row = y * width;
+			int rowUp = row - width;
+			int rowDown = row + width;
+
+			for (int x = 1; x < width - 1; x += step) {
+				int idx = row + x;
+
+				int c = pixels[idx];
+				int left = pixels[idx - 1];
+				int right = pixels[idx + 1];
+				int up = pixels[rowUp + x];
+				int down = pixels[rowDown + x];
+
+				int luma = ((c >> 16) & 0xFF) * 77 + ((c >> 8) & 0xFF) * 150 + (c & 0xFF) * 29;
+				int lumaLeft = ((left >> 16) & 0xFF) * 77 + ((left >> 8) & 0xFF) * 150 + (left & 0xFF) * 29;
+				int lumaRight = ((right >> 16) & 0xFF) * 77 + ((right >> 8) & 0xFF) * 150 + (right & 0xFF) * 29;
+				int lumaUp = ((up >> 16) & 0xFF) * 77 + ((up >> 8) & 0xFF) * 150 + (up & 0xFF) * 29;
+				int lumaDown = ((down >> 16) & 0xFF) * 77 + ((down >> 8) & 0xFF) * 150 + (down & 0xFF) * 29;
+
+				int diff = Math.max(
+						Math.max(Math.abs(luma - lumaLeft), Math.abs(luma - lumaRight)),
+						Math.max(Math.abs(luma - lumaUp), Math.abs(luma - lumaDown))
+				);
+
+				if (diff > (lumaThreshold << 8)) {
+					int r = ((c >> 16) & 0xFF) + ((left >> 16) & 0xFF) + ((right >> 16) & 0xFF)
+							+ ((up >> 16) & 0xFF) + ((down >> 16) & 0xFF);
+					int g = ((c >> 8) & 0xFF) + ((left >> 8) & 0xFF) + ((right >> 8) & 0xFF)
+							+ ((up >> 8) & 0xFF) + ((down >> 8) & 0xFF);
+					int b = (c & 0xFF) + (left & 0xFF) + (right & 0xFF)
+							+ (up & 0xFF) + (down & 0xFF);
+
+					r /= 5;
+					g /= 5;
+					b /= 5;
+
+					antiAliasingPostBuffer[idx] = (r << 16) | (g << 8) | b;
+				}
+			}
 		}
+
+		System.arraycopy(antiAliasingPostBuffer, 0, pixels, 0, length);
 	}
 
 	private void handleScreenFadePacket(String text, int state, int seconds) {
