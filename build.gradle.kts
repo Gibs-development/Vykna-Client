@@ -45,7 +45,8 @@ sourceSets {
 
 dependencies {
 
-    val lwjglNatives = listOf("natives-windows", "natives-linux", "natives-macos")
+    val lwjglVersion = "3.3.3"
+    val lwjglNatives = listOf("natives-windows", "natives-linux")
 
     /* Core */
     implementation("com.thoughtworks.xstream:xstream:1.4.7")
@@ -85,13 +86,12 @@ dependencies {
     annotationProcessor("org.projectlombok:lombok:1.18.8")
 
     /* GPU Presenter */
-    implementation(platform("org.lwjgl:lwjgl-bom:3.3.3"))
-    implementation("org.lwjgl:lwjgl")
-    implementation("org.lwjgl:lwjgl-opengl")
-    implementation("org.lwjglx:lwjgl3-awt:0.2.3")
+    implementation("org.lwjgl:lwjgl:$lwjglVersion")
+    implementation("org.lwjgl:lwjgl-opengl:$lwjglVersion")
+    implementation("org.lwjgl:lwjgl-awt:$lwjglVersion")
     lwjglNatives.forEach { native ->
-        runtimeOnly("org.lwjgl:lwjgl::$native")
-        runtimeOnly("org.lwjgl:lwjgl-opengl::$native")
+        runtimeOnly("org.lwjgl:lwjgl:$lwjglVersion:$native")
+        runtimeOnly("org.lwjgl:lwjgl-opengl:$lwjglVersion:$native")
     }
 
     /* Testing */
