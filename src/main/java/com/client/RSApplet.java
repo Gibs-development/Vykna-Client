@@ -238,11 +238,7 @@ public class RSApplet extends Applet implements Runnable, MouseListener, MouseMo
 	}
 	@Override
 	public void run() {
-		getGameComponent().addMouseListener(this);
-		getGameComponent().addMouseMotionListener(this);
-		getGameComponent().addKeyListener(this);
-		getGameComponent().addFocusListener(this);
-		getGameComponent().addMouseWheelListener(this);
+		bindInputListeners(getGameComponent());
 		// drawLoadingText(0, "Loading...");
 		startUp();
 		int i = 0;
@@ -309,6 +305,7 @@ public class RSApplet extends Applet implements Runnable, MouseListener, MouseMo
 			if (delayTime > 0)
 				setFps((1000 * j) / (delayTime * 256));
 			processDrawing();
+			applyFrameCap();
 			if (shouldDebug) {
 				System.out.println("ntime:" + l1);
 				for (int l2 = 0; l2 < 10; l2++) {
@@ -788,6 +785,22 @@ public class RSApplet extends Applet implements Runnable, MouseListener, MouseMo
 		return this;
 	}
 
+	protected void bindInputListeners(Component component) {
+		component.addMouseListener(this);
+		component.addMouseMotionListener(this);
+		component.addKeyListener(this);
+		component.addFocusListener(this);
+		component.addMouseWheelListener(this);
+	}
+
+	protected void unbindInputListeners(Component component) {
+		component.removeMouseListener(this);
+		component.removeMouseMotionListener(this);
+		component.removeKeyListener(this);
+		component.removeFocusListener(this);
+		component.removeMouseWheelListener(this);
+	}
+
 	public void startRunnable(Runnable runnable, int priority) {
 		Thread thread = new Thread(runnable);
 		thread.start();
@@ -843,8 +856,37 @@ public class RSApplet extends Applet implements Runnable, MouseListener, MouseMo
 		charQueue = new int[128];
 	}
 
+	protected void setFrameCapMs(int frameCapMs) {
+		this.frameCapMs = frameCapMs;
+	}
+
+	protected int getFrameCapMs() {
+		return frameCapMs;
+	}
+
+	private void applyFrameCap() {
+		if (frameCapMs <= 0) {
+			lastFrameCapTime = 0L;
+			return;
+		}
+		long now = System.currentTimeMillis();
+		if (lastFrameCapTime != 0L) {
+			long elapsed = now - lastFrameCapTime;
+			long sleepFor = frameCapMs - elapsed;
+			if (sleepFor > 0) {
+				try {
+					Thread.sleep(sleepFor);
+				} catch (InterruptedException ignored) {
+				}
+			}
+		}
+		lastFrameCapTime = System.currentTimeMillis();
+	}
+
 	private int anInt4;
 	private int delayTime;
+	private int frameCapMs;
+	private long lastFrameCapTime;
 	int minDelay;
 	private final long[] aLongArray7;
 	private int fps;
