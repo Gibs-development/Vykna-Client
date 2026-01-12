@@ -45,6 +45,9 @@ sourceSets {
 
 dependencies {
 
+    val lwjglVersion = "3.3.3"
+    val lwjglNatives = listOf("natives-windows", "natives-linux")
+
     /* Core */
     implementation("com.thoughtworks.xstream:xstream:1.4.7")
     implementation("org.slf4j:slf4j-api:1.7.36")
@@ -81,6 +84,15 @@ dependencies {
     /* Lombok */
     compileOnly("org.projectlombok:lombok:1.18.8")
     annotationProcessor("org.projectlombok:lombok:1.18.8")
+
+    /* GPU Presenter */
+    implementation("org.lwjgl:lwjgl:$lwjglVersion")
+    implementation("org.lwjgl:lwjgl-opengl:$lwjglVersion")
+    implementation("org.lwjgl:lwjgl-awt:$lwjglVersion")
+    lwjglNatives.forEach { native ->
+        runtimeOnly("org.lwjgl:lwjgl:$lwjglVersion:$native")
+        runtimeOnly("org.lwjgl:lwjgl-opengl:$lwjglVersion:$native")
+    }
 
     /* Testing */
     testImplementation("org.junit.jupiter:junit-jupiter-api:5.9.0")
@@ -134,4 +146,3 @@ tasks.register("buildJars") {
     dependsOn("createStandardJar")
     dependsOn("obfuscateStandard")
 }
-

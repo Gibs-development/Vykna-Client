@@ -24,15 +24,27 @@ public final class RSImageProducer {
 	}
 
 	public void drawGraphics(int x, int y, Graphics gfx) {
+		if (Client.isGpuPresenterEnabled()) {
+			Client.getGpuPresenterManager().blit(canvasRaster, width, height, x, y);
+			return;
+		}
 		draw(gfx, x, y);
 	}
 
 	public void draw(Graphics gfx, int x, int y) {
+		if (Client.isGpuPresenterEnabled()) {
+			Client.getGpuPresenterManager().blit(canvasRaster, width, height, x, y);
+			return;
+		}
 		drawScaledImage(image, gfx, x, y, width, height);
 	}
 
 	public void draw(Graphics gfx, int x, int y, int clipX, int clipY,
 			int clipWidth, int clipHeight) {
+		if (Client.isGpuPresenterEnabled()) {
+			Client.getGpuPresenterManager().blit(canvasRaster, width, height, x, y);
+			return;
+		}
 		Shape tmp = gfx.getClip();
 		try {
 			clip.x = clipX;
