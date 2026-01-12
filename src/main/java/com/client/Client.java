@@ -8,6 +8,10 @@ import com.client.definitions.server.ItemDef;
 import com.client.features.EntityTarget;
 import com.client.features.ExperienceDrop;
 import com.client.features.gameframe.ScreenMode;
+import com.client.renderer.GameComponentHost;
+import com.client.renderer.GpuPresenterManager;
+import com.client.renderer.RendererMode;
+import com.client.renderer.SoftwareRenderer;
 import com.client.features.gametimers.GameTimer;
 import com.client.features.gametimers.GameTimerHandler;
 import com.client.features.particles.Particle;
@@ -4183,6 +4187,19 @@ public class Client extends RSApplet {
 	private static String[] args = null;
 	public static Client instance;
 	public static boolean runelite;
+	private static final GpuPresenterManager GPU_PRESENTER = new GpuPresenterManager();
+	private final GameComponentHost gameComponentHost = new GameComponentHost();
+	private final SoftwareRenderer softwareRenderer = new SoftwareRenderer();
+	private RendererMode rendererMode = RendererMode.SOFTWARE;
+	private boolean gpuEnabled = false;
+	private float gpuSharpen = 0.4f;
+	private float gpuSaturation = 1.1f;
+	private int gpuFpsCap = 0;
+	private boolean gpuVsync = true;
+	private boolean gpuSkipUploadWhenUnfocused = true;
+	private boolean gpuLinearFilter = false;
+	private long lastFrameNanos;
+	private float lastFrameTimeMs;
 
 	private static int getVersion() {
 		String version = System.getProperty("java.version");
@@ -4317,7 +4334,7 @@ public class Client extends RSApplet {
 			Signlink.startpriv(InetAddress.getLocalHost());
 			if (runelite) {
 				instance = new Client();
-				gameContainer = instance;
+				gameContainer = instance.getGameComponentHost();
 			} else {
 				instance = new ClientWindow(args);
 				appFrame = ClientWindow.getFrame();
@@ -4341,6 +4358,38 @@ public class Client extends RSApplet {
 
 	public static Client getInstance() {
 		return instance;
+	}
+
+	public static GpuPresenterManager getGpuPresenterManager() {
+		return GPU_PRESENTER;
+	}
+
+	public static boolean isGpuPresenterEnabled() {
+		return instance != null && instance.gpuEnabled;
+	}
+
+	public Component getGameComponentHost() {
+		return gameComponentHost;
+	}
+
+	public boolean isGpuEnabled() {
+		return gpuEnabled;
+	}
+
+	public RendererMode getRendererMode() {
+		return rendererMode;
+	}
+
+	public float getGpuSharpen() {
+		return gpuSharpen;
+	}
+
+	public float getGpuSaturation() {
+		return gpuSaturation;
+	}
+
+	public int getGpuFpsCap() {
+		return gpuFpsCap;
 	}
 
 	public int getSpriteDrawX() {
@@ -7502,9 +7551,50 @@ public class Client extends RSApplet {
 	}
 
 	public Component getGameComponent() {
+		if (gpuEnabled && GPU_PRESENTER.getPresenterComponent() != null) {
+			return GPU_PRESENTER.getPresenterComponent();
+		}
 		if (Signlink.mainapp != null)
 			return Signlink.mainapp;
 		return this;
+	}
+
+	private void updateGameComponentHost(Component newComponent) {
+		Component oldComponent = null;
+		if (gameComponentHost.getComponentCount() > 0) {
+			oldComponent = gameComponentHost.getComponent(0);
+		}
+		if (oldComponent != null && oldComponent != newComponent) {
+			unbindInputListeners(oldComponent);
+		}
+		gameComponentHost.setGameComponent(newComponent);
+		if (newComponent != null && newComponent != oldComponent) {
+			bindInputListeners(newComponent);
+			newComponent.requestFocusInWindow();
+		}
+	}
+
+	private void updateGpuPresenterState() {
+		if (gpuEnabled) {
+			rendererMode = RendererMode.GPU_PRESENTER;
+			GPU_PRESENTER.setVsyncEnabled(gpuVsync);
+			GPU_PRESENTER.setSkipUploadWhenUnfocused(gpuSkipUploadWhenUnfocused);
+			GPU_PRESENTER.setLinearFilter(gpuLinearFilter);
+			updateGameComponentHost(GPU_PRESENTER.getPresenterComponent());
+		} else {
+			rendererMode = RendererMode.SOFTWARE;
+			GPU_PRESENTER.shutdown();
+			updateGameComponentHost(this);
+		}
+	}
+
+	private void updateFpsCap(int fpsCap) {
+		gpuFpsCap = fpsCap;
+		if (fpsCap <= 0) {
+			setFrameCapMs(0);
+		} else {
+			setFrameCapMs(1000 / fpsCap);
+		}
 	}
 
 	public void pmTabToReply(String name) {
@@ -7921,6 +8011,98 @@ public class Client extends RSApplet {
 							} catch (Exception e) {
 								pushMessage("Not a valid screenmode.", 0, "");
 							}
+						}
+
+						if (inputString.equals("::gpu")) {
+							gpuEnabled = !gpuEnabled;
+							updateGpuPresenterState();
+							updateFpsCap(gpuFpsCap);
+							pushMessage("GPU presenter " + (gpuEnabled ? "enabled" : "disabled") + ".", 0, "");
+							suppressServerCommand = true;
+						}
+
+						if (inputString.startsWith("::sharpen")) {
+							try {
+								float value = Float.parseFloat(inputString.replace("::sharpen", "").trim());
+								gpuSharpen = Math.max(0f, Math.min(2f, value));
+								pushMessage("Sharpen set to " + gpuSharpen + ".", 0, "");
+							} catch (Exception e) {
+								pushMessage("Usage: ::sharpen 0..2", 0, "");
+							}
+							suppressServerCommand = true;
+						}
+
+						if (inputString.startsWith("::saturation")) {
+							try {
+								float value = Float.parseFloat(inputString.replace("::saturation", "").trim());
+								gpuSaturation = Math.max(0f, Math.min(2f, value));
+								pushMessage("Saturation set to " + gpuSaturation + ".", 0, "");
+							} catch (Exception e) {
+								pushMessage("Usage: ::saturation 0..2", 0, "");
+							}
+							suppressServerCommand = true;
+						}
+
+						if (inputString.startsWith("::fpscap")) {
+							try {
+								int value = Integer.parseInt(inputString.replace("::fpscap", "").trim());
+								if (value != 0 && value != 30 && value != 60 && value != 120 && value != 240) {
+									throw new IllegalArgumentException("Invalid cap");
+								}
+								updateFpsCap(value);
+								pushMessage("FPS cap set to " + (value == 0 ? "uncapped" : value) + ".", 0, "");
+							} catch (Exception e) {
+								pushMessage("Usage: ::fpscap 0|30|60|120|240", 0, "");
+							}
+							suppressServerCommand = true;
+						}
+
+						if (inputString.startsWith("::gpufilter")) {
+							String option = inputString.replace("::gpufilter", "").trim();
+							if (option.equalsIgnoreCase("linear")) {
+								gpuLinearFilter = true;
+								GPU_PRESENTER.setLinearFilter(true);
+								pushMessage("GPU filter set to linear.", 0, "");
+							} else if (option.equalsIgnoreCase("nearest")) {
+								gpuLinearFilter = false;
+								GPU_PRESENTER.setLinearFilter(false);
+								pushMessage("GPU filter set to nearest.", 0, "");
+							} else {
+								pushMessage("Usage: ::gpufilter linear|nearest", 0, "");
+							}
+							suppressServerCommand = true;
+						}
+
+						if (inputString.startsWith("::vsync")) {
+							String option = inputString.replace("::vsync", "").trim();
+							if (option.equalsIgnoreCase("on")) {
+								gpuVsync = true;
+								GPU_PRESENTER.setVsyncEnabled(true);
+								pushMessage("VSync enabled.", 0, "");
+							} else if (option.equalsIgnoreCase("off")) {
+								gpuVsync = false;
+								GPU_PRESENTER.setVsyncEnabled(false);
+								pushMessage("VSync disabled.", 0, "");
+							} else {
+								pushMessage("Usage: ::vsync on|off", 0, "");
+							}
+							suppressServerCommand = true;
+						}
+
+						if (inputString.startsWith("::gpuskip")) {
+							String option = inputString.replace("::gpuskip", "").trim();
+							if (option.equalsIgnoreCase("on")) {
+								gpuSkipUploadWhenUnfocused = true;
+								GPU_PRESENTER.setSkipUploadWhenUnfocused(true);
+								pushMessage("GPU upload skipping enabled.", 0, "");
+							} else if (option.equalsIgnoreCase("off")) {
+								gpuSkipUploadWhenUnfocused = false;
+								GPU_PRESENTER.setSkipUploadWhenUnfocused(false);
+								pushMessage("GPU upload skipping disabled.", 0, "");
+							} else {
+								pushMessage("Usage: ::gpuskip on|off", 0, "");
+							}
+							suppressServerCommand = true;
 						}
 
 
@@ -12091,6 +12273,7 @@ public class Client extends RSApplet {
 			mapAreaGraphicsBuffer.drawGraphics(516, 0, super.graphics);
 		}
 		drawScreenFadeOverlay();
+		drawRendererDiagnosticsOverlay();
 		tickDelta = 0;
 		// loginBackground2.drawSprite(0,0);
 		if (fullscreenInterfaceID != -1 && (loadingStage == 2 || super.fullGameScreen != null)) {
@@ -12137,6 +12320,26 @@ public class Client extends RSApplet {
 				resetImageProducers2();
 			}
 		}
+	}
+
+	private void drawRendererDiagnosticsOverlay() {
+		if (aTextDrawingArea_1271 == null) {
+			return;
+		}
+		int x = 5;
+		int y = 16;
+		int textColor = 0x00ff00;
+		int canvasWidth = getGameComponent().getWidth();
+		int canvasHeight = getGameComponent().getHeight();
+		String modeLabel = rendererMode.name();
+		aTextDrawingArea_1271.method385(textColor, "Renderer: " + modeLabel, y, x);
+		y += 14;
+		aTextDrawingArea_1271.method385(textColor, "FPS: " + super.getFps() + " (" + String.format("%.2f", lastFrameTimeMs) + " ms)", y, x);
+		y += 14;
+		aTextDrawingArea_1271.method385(textColor, "Canvas: " + canvasWidth + "x" + canvasHeight + " Buffer: " + currentGameWidth + "x" + currentGameHeight, y, x);
+		y += 14;
+		boolean vsyncOn = gpuEnabled && gpuVsync;
+		aTextDrawingArea_1271.method385(textColor, "VSync: " + (vsyncOn ? "on" : "off"), y, x);
 	}
 
 	private boolean buildFriendsListMenu(RSInterface class9) {
@@ -13647,6 +13850,14 @@ public class Client extends RSApplet {
 
 	@Override
 	public void processDrawing() {
+		long now = System.nanoTime();
+		if (lastFrameNanos != 0L) {
+			lastFrameTimeMs = (now - lastFrameNanos) / 1_000_000f;
+		}
+		lastFrameNanos = now;
+		if (gpuEnabled) {
+			GPU_PRESENTER.beginFrame(currentGameWidth, currentGameHeight);
+		}
 		if (rsAlreadyLoaded || loadingError || genericLoadingError) {
 			showErrorScreen();
 			return;
@@ -13660,6 +13871,13 @@ public class Client extends RSApplet {
 			}
 		}
 		mouseClickCount = 0;
+		if (gpuEnabled) {
+			Component component = getGameComponent();
+			boolean focused = component != null && component.isFocusOwner() && component.isShowing();
+			int canvasWidth = component != null ? component.getWidth() : currentGameWidth;
+			int canvasHeight = component != null ? component.getHeight() : currentGameHeight;
+			GPU_PRESENTER.presentFrame(canvasWidth, canvasHeight, focused, gpuSharpen, gpuSaturation);
+		}
 	}
 
 	private boolean isFriendOrSelf(String s) {
@@ -16215,6 +16433,7 @@ public class Client extends RSApplet {
 		}
 
 
+		drawRendererDiagnosticsOverlay();
 		loginScreenGraphicsBuffer.drawGraphics(0, 0, super.graphics);
 	}
 
@@ -18999,6 +19218,7 @@ public class Client extends RSApplet {
 	private Sprite[] chatButtons;
 
 	Client() {
+		gameComponentHost.setGameComponent(this);
 		firstLoginMessage = "";
 		xpAddedPos = expAdded = 0;
 		xpLock = false;
