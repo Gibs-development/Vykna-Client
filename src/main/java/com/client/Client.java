@@ -12506,7 +12506,44 @@ public class Client extends RSApplet {
 	public void drawInterface(int scrollPosition, int xPosition, RSInterface rsInterface, int yPosition) {
 		drawInterface(scrollPosition, xPosition, rsInterface, yPosition, false);
 	}
-
+	public void processRs3MinimapClick(int mouseX, int mouseY, int panelBaseX, int panelBaseY) {
+		if (minimapState != 0) {
+			return;
+		}
+		int i = mouseX - (panelBaseX + 24);
+		int j = mouseY - (panelBaseY + 8);
+		if (inCircle(0, 0, i, j, 76) && mouseMapPosition(mouseX, mouseY, panelBaseX, panelBaseY) && !runHover) {
+			i -= 73;
+			j -= 75;
+			int k = viewRotation + minimapRotation & 0x7ff;
+			int i1 = Rasterizer.anIntArray1470[k];
+			int j1 = Rasterizer.anIntArray1471[k];
+			i1 = i1 * (minimapZoom + 256) >> 8;
+			j1 = j1 * (minimapZoom + 256) >> 8;
+			int k1 = j * i1 + i * j1 >> 11;
+			int l1 = j * j1 - i * i1 >> 11;
+			int i2 = myPlayer.x + k1 >> 7;
+			int j2 = myPlayer.y - l1 >> 7;
+			if (myPlayer.isAdminRights() && controlIsDown) {
+				teleport(baseX + i2, baseY + j2);
+			} else {
+				boolean flag1 = doWalkTo(1, myPlayer.pathX[0], myPlayer.pathY[0], 0, 0, 0, 0, 0, j2, true, i2);
+				if (flag1) {
+					stream.writeUnsignedByte(i);
+					stream.writeUnsignedByte(j);
+					stream.writeWord(viewRotation);
+					stream.writeUnsignedByte(57);
+					stream.writeUnsignedByte(minimapRotation);
+					stream.writeUnsignedByte(minimapZoom);
+					stream.writeUnsignedByte(89);
+					stream.writeWord(myPlayer.x);
+					stream.writeWord(myPlayer.y);
+					stream.writeUnsignedByte(anInt1264);
+					stream.writeUnsignedByte(63);
+				}
+			}
+		}
+	}
 	public void drawInterface(int scrollPosition, int xPosition, RSInterface rsInterface, int yPosition, boolean inheritDrawingArea) {
 		try {
 			if (rsInterface.type != 0 || rsInterface.children == null)
@@ -12554,45 +12591,6 @@ public class Client extends RSApplet {
 									drawBlackBox(_x + 1, _y);
 								} else {
 									drawBlackBox(_x, _y + 1);
-				}
-			}
-		}
-	}
-
-	public void processRs3MinimapClick(int mouseX, int mouseY, int panelBaseX, int panelBaseY) {
-		if (minimapState != 0) {
-			return;
-		}
-		int i = mouseX - (panelBaseX + 24);
-		int j = mouseY - (panelBaseY + 8);
-		if (inCircle(0, 0, i, j, 76) && mouseMapPosition(mouseX, mouseY, panelBaseX, panelBaseY) && !runHover) {
-			i -= 73;
-			j -= 75;
-			int k = viewRotation + minimapRotation & 0x7ff;
-			int i1 = Rasterizer.anIntArray1470[k];
-			int j1 = Rasterizer.anIntArray1471[k];
-			i1 = i1 * (minimapZoom + 256) >> 8;
-			j1 = j1 * (minimapZoom + 256) >> 8;
-			int k1 = j * i1 + i * j1 >> 11;
-			int l1 = j * j1 - i * i1 >> 11;
-			int i2 = myPlayer.x + k1 >> 7;
-			int j2 = myPlayer.y - l1 >> 7;
-			if (myPlayer.isAdminRights() && controlIsDown) {
-				teleport(baseX + i2, baseY + j2);
-			} else {
-				boolean flag1 = doWalkTo(1, myPlayer.pathX[0], myPlayer.pathY[0], 0, 0, 0, 0, 0, j2, true, i2);
-				if (flag1) {
-					stream.writeUnsignedByte(i);
-					stream.writeUnsignedByte(j);
-					stream.writeWord(viewRotation);
-					stream.writeUnsignedByte(57);
-					stream.writeUnsignedByte(minimapRotation);
-					stream.writeUnsignedByte(minimapZoom);
-					stream.writeUnsignedByte(89);
-					stream.writeWord(myPlayer.x);
-					stream.writeWord(myPlayer.y);
-					stream.writeUnsignedByte(anInt1264);
-					stream.writeUnsignedByte(63);
 				}
 			}
 		}

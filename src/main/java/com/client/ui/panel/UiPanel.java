@@ -22,4 +22,6 @@ public interface UiPanel {
 	void draw(Client client);
 
 	boolean handleMouse(Client client, int mouseX, int mouseY);
+
+    boolean handleClick(Client client, int mouseX, int mouseY);
 }

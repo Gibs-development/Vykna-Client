@@ -306,7 +306,7 @@ public class PanelManager {
 		private final boolean draggable;
 		private final String title;
 
-		private BasePanel(int id, Rectangle bounds, boolean visible, boolean draggable, String title) {
+		BasePanel(int id, Rectangle bounds, boolean visible, boolean draggable, String title) {
 			this.id = id;
 			this.bounds = bounds;
 			this.visible = visible;
@@ -347,6 +347,16 @@ public class PanelManager {
 		@Override
 		public void setPosition(int x, int y) {
 			bounds.setLocation(x, y);
+		}
+
+		@Override
+		public void draw(Client client) {
+
+		}
+
+		@Override
+		public boolean handleMouse(Client client, int mouseX, int mouseY) {
+			return false;
 		}
 
 		private void setVisible(boolean visible) {
