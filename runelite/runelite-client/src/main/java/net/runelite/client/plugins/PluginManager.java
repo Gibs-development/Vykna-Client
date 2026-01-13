@@ -67,6 +67,8 @@ import net.runelite.client.config.RuneLiteConfig;
 import net.runelite.client.eventbus.EventBus;
 import net.runelite.client.eventbus.Subscribe;
 import net.runelite.client.events.PluginChanged;
+import net.runelite.client.plugins.config.ConfigPlugin;
+import net.runelite.client.plugins.notes.NotesPlugin;
 import net.runelite.client.task.Schedule;
 import net.runelite.client.task.ScheduledMethod;
 import net.runelite.client.task.Scheduler;
@@ -196,6 +198,8 @@ public class PluginManager
 	public void loadCorePlugins() throws IOException
 	{
 		plugins.addAll(scanAndInstantiate(getClass().getClassLoader(), PLUGIN_PACKAGE));
+		ensurePluginEnabledByDefault(ConfigPlugin.class);
+		ensurePluginEnabledByDefault(NotesPlugin.class);
 	}
 
 	public void startCorePlugins()
@@ -464,6 +468,15 @@ public class PluginManager
 
 		log.debug("Loaded plugin {}", clazz.getSimpleName());
 		return plugin;
+	}
+
+	private void ensurePluginEnabledByDefault(Class<? extends Plugin> pluginClass)
+	{
+		final String keyName = pluginClass.getSimpleName().toLowerCase();
+		if (configManager.getConfiguration(runeliteGroupName, keyName) == null)
+		{
+			configManager.setConfiguration(runeliteGroupName, keyName, String.valueOf(true));
+		}
 	}
 
 	void add(Plugin plugin)
