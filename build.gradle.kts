@@ -105,19 +105,7 @@ tasks.register<Jar>("createStandardJar") {
     })
 }
 
-tasks.register<Jar>("createRuneliteJar") {
-    archiveFileName.set("NotObfuscatedRunelite.jar")
-    from(sourceSets["main"].output)
-    manifest {
-        attributes["Main-Class"] = "net.runelite.client.RuneLite"
-    }
-    dependsOn(configurations.runtimeClasspath)
-    from({
-        configurations.runtimeClasspath.get()
-            .filter { it.name.endsWith(".jar") }
-            .map { zipTree(it) }
-    })
-}
+
 
 tasks.register<ProGuardTask>("obfuscateStandard") {
     configuration("proguard.conf")
