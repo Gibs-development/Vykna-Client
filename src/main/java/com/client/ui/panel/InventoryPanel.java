@@ -1,6 +1,7 @@
 package com.client.ui.panel;
 
 import com.client.Client;
+import com.client.DrawingArea;
 import com.client.graphics.interfaces.RSInterface;
 
 import java.awt.Dimension;
@@ -23,6 +24,7 @@ public class InventoryPanel extends PanelManager.TabPanel {
 	@Override
 	public void draw(Client client) {
 		applyResponsiveLayout(client);
+		drawSlotGrid(client);
 		super.draw(client);
 	}
 
@@ -85,5 +87,49 @@ public class InventoryPanel extends PanelManager.TabPanel {
 		container.width = columns;
 		container.height = rows;
 		client.getPanelManager().saveLayout(client);
+	}
+
+	private void drawSlotGrid(Client client) {
+		RSInterface container = RSInterface.interfaceCache[INVENTORY_CONTAINER_ID];
+		if (container == null) {
+			return;
+		}
+		Rectangle bounds = getBounds();
+		int padX = container.invSpritePadX;
+		int padY = container.invSpritePadY;
+		int startX = bounds.x + CONTENT_PADDING;
+		int startY = bounds.y + PanelManager.PANEL_HEADER_HEIGHT + CONTENT_PADDING;
+		int gridColor = 0x1a1a1a;
+		for (int row = 0; row < cachedRows; row++) {
+			for (int col = 0; col < cachedColumns; col++) {
+				int x = startX + col * (SLOT_SIZE + padX);
+				int y = startY + row * (SLOT_SIZE + padY);
+				DrawingArea.drawPixels(SLOT_SIZE, y, x, gridColor, SLOT_SIZE);
+			}
+		}
+	}
+
+	static void resetInventoryContainer() {
+		RSInterface container = RSInterface.interfaceCache[INVENTORY_CONTAINER_ID];
+		if (container == null) {
+			return;
+		}
+		container.width = 4;
+		container.height = 7;
+		if (container.inventoryItemId == null || container.inventoryItemId.length != 28) {
+			int[] oldItems = container.inventoryItemId == null ? new int[0] : container.inventoryItemId;
+			int[] oldAmounts = container.inventoryAmounts == null ? new int[0] : container.inventoryAmounts;
+			container.inventoryItemId = new int[28];
+			container.inventoryAmounts = new int[28];
+			for (int index = 0; index < Math.min(28, oldItems.length); index++) {
+				container.inventoryItemId[index] = oldItems[index];
+				container.inventoryAmounts[index] = oldAmounts[index];
+			}
+		}
+	}
+
+	void resetCachedLayout() {
+		cachedColumns = 4;
+		cachedRows = 7;
 	}
 }
