@@ -43,6 +43,10 @@ public interface UiPanel {
 		return false;
 	}
 
+	default boolean drawsBackground() {
+		return true;
+	}
+
 	default void onResize(Client client) {
 	}
 }
