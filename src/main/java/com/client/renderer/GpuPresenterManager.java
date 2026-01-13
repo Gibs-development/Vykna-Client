@@ -6,7 +6,15 @@ import java.awt.*;
 import java.util.Arrays;
 
 public final class GpuPresenterManager {
-    private final boolean debugEnabled = Boolean.getBoolean("gpu.debug");
+    public enum PresenterState {
+        OFF,
+        ENABLING,
+        ON,
+        DISABLING
+    }
+
+    private final Object lifecycleLock = new Object();
+    private boolean debugEnabled = false;
     private GpuPresenter presenter;
     private int[] framePixels;
     private int frameWidth;
@@ -16,6 +24,9 @@ public final class GpuPresenterManager {
     private boolean vsyncEnabled = true;
     private boolean skipUploadWhenUnfocused = true;
     private float lastFrameTimeMs;
+    private volatile PresenterState state = PresenterState.OFF;
+    private volatile String pendingGpuInfoMessage;
+    private volatile Throwable initFailure;
 
     public boolean isEnabled() {
         return enabled;
@@ -23,6 +34,17 @@ public final class GpuPresenterManager {
 
     public void setEnabled(boolean enabled) {
         this.enabled = enabled;
+    }
+
+    public void setDebugEnabled(boolean debugEnabled) {
+        this.debugEnabled = debugEnabled || Boolean.getBoolean("gpu.debug");
+        if (presenter != null) {
+            presenter.setDebugEnabled(this.debugEnabled);
+        }
+    }
+
+    public PresenterState getState() {
+        return state;
     }
 
     public void setLinearFilter(boolean linearFilter) {
@@ -58,6 +80,10 @@ public final class GpuPresenterManager {
     }
 
     public Component getPresenterComponent() {
+        return presenter;
+    }
+
+    public Component createPresenterIfNeeded() {
         ensurePresenter();
         return presenter;
     }
@@ -103,34 +129,103 @@ public final class GpuPresenterManager {
         if (!enabled || framePixels == null) {
             return;
         }
-        ensurePresenter();
+        GpuPresenter activePresenter = presenter;
+        if (activePresenter == null) {
+            return;
+        }
         long frameStart = System.nanoTime();
         RenderContext context = new RenderContext(framePixels, frameWidth, frameHeight, canvasWidth, canvasHeight,
             vsyncEnabled, focused, skipUploadWhenUnfocused, sharpen, saturation);
-        presenter.present(context);
+        try {
+            synchronized (lifecycleLock) {
+                if (!enabled) {
+                    return;
+                }
+                activePresenter.present(context);
+            }
+        } catch (RuntimeException ex) {
+            recordInitFailure(ex);
+            return;
+        }
         lastFrameTimeMs = (System.nanoTime() - frameStart) / 1_000_000f;
         if (debugEnabled) {
             System.out.println(String.format("[GPU] Frame time: %.3f ms", lastFrameTimeMs));
         }
+
+        String gpuInfo = activePresenter.consumeGpuInfoMessage();
+        if (gpuInfo != null) {
+            pendingGpuInfoMessage = gpuInfo;
+        }
     }
 
     public void shutdown() {
-        if (presenter != null) {
-            presenter.shutdown();
-            presenter = null;
+        synchronized (lifecycleLock) {
+            if (presenter != null) {
+                presenter.shutdown();
+                presenter = null;
+            }
+            enabled = false;
+            state = PresenterState.OFF;
         }
     }
 
-    private void ensurePresenter() {
-        if (presenter != null) {
-            return;
+    public void beginEnable() {
+        synchronized (lifecycleLock) {
+            state = PresenterState.ENABLING;
+            enabled = true;
+            initFailure = null;
+            pendingGpuInfoMessage = null;
         }
-        GLData data = new GLData();
-        data.majorVersion = 2;
-        data.minorVersion = 0;
-        data.samples = 0;
-        data.swapInterval = vsyncEnabled ? 1 : 0;
-        presenter = new GpuPresenter(data);
-        presenter.setLinearFilter(linearFilter);
+    }
+
+    public void markEnabled() {
+        synchronized (lifecycleLock) {
+            state = PresenterState.ON;
+        }
+    }
+
+    public void beginDisable() {
+        synchronized (lifecycleLock) {
+            state = PresenterState.DISABLING;
+            enabled = false;
+        }
+    }
+
+    public String consumeGpuInfoMessage() {
+        String message = pendingGpuInfoMessage;
+        pendingGpuInfoMessage = null;
+        return message;
+    }
+
+    public Throwable consumeInitFailure() {
+        Throwable failure = initFailure;
+        initFailure = null;
+        return failure;
+    }
+
+    private void ensurePresenter() {
+        synchronized (lifecycleLock) {
+            if (presenter != null) {
+                return;
+            }
+            GLData data = new GLData();
+            data.majorVersion = 2;
+            data.minorVersion = 0;
+            data.samples = 0;
+            data.swapInterval = vsyncEnabled ? 1 : 0;
+            presenter = new GpuPresenter(data);
+            presenter.setLinearFilter(linearFilter);
+            presenter.setDebugEnabled(debugEnabled);
+            presenter.resetGpuInfoMessage();
+        }
+    }
+
+    private void recordInitFailure(RuntimeException ex) {
+        if (initFailure == null) {
+            initFailure = ex;
+        }
+        pendingGpuInfoMessage = null;
+        enabled = false;
+        state = PresenterState.OFF;
     }
 }

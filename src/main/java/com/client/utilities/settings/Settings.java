@@ -30,6 +30,7 @@ public class Settings implements Serializable {
 		settings.bountyHunter = true;
 		settings.showEntityTarget = true;
 		settings.drawDistance = 30;
+		settings.debugGpuPresenter = false;
 		return settings;
 	}
 
@@ -48,6 +49,7 @@ public class Settings implements Serializable {
 	private int drawDistance;
 	private boolean stretchedMode;
 	private Dimension stretchedModeDimensions;
+	private boolean debugGpuPresenter;
 
 	public Settings() {}
 
@@ -171,6 +173,13 @@ public class Settings implements Serializable {
 		this.stretchedModeDimensions = stretchedModeDimensions;
 	}
 
+	public boolean isDebugGpuPresenter() {
+		return debugGpuPresenter;
+	}
+
+	public void setDebugGpuPresenter(boolean debugGpuPresenter) {
+		this.debugGpuPresenter = debugGpuPresenter;
+	}
 
 	private boolean statusBars;
 	public void setStatusBars(boolean statusBars) {

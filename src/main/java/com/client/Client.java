@@ -7561,31 +7561,55 @@ public class Client extends RSApplet {
 	}
 
 	private void updateGameComponentHost(Component newComponent) {
-		Component oldComponent = null;
-		if (gameComponentHost.getComponentCount() > 0) {
-			oldComponent = gameComponentHost.getComponent(0);
+		runOnEdt(() -> {
+			Component oldComponent = null;
+			if (gameComponentHost.getComponentCount() > 0) {
+				oldComponent = gameComponentHost.getComponent(0);
+			}
+			if (oldComponent != null && oldComponent != newComponent) {
+				unbindInputListeners(oldComponent);
+			}
+			gameComponentHost.setGameComponent(newComponent);
+			if (newComponent != null && newComponent != oldComponent) {
+				bindInputListeners(newComponent);
+				newComponent.requestFocusInWindow();
+			}
+		});
+	}
+
+	private void runOnEdt(Runnable task) {
+		if (SwingUtilities.isEventDispatchThread()) {
+			task.run();
+			return;
 		}
-		if (oldComponent != null && oldComponent != newComponent) {
-			unbindInputListeners(oldComponent);
-		}
-		gameComponentHost.setGameComponent(newComponent);
-		if (newComponent != null && newComponent != oldComponent) {
-			bindInputListeners(newComponent);
-			newComponent.requestFocusInWindow();
+		try {
+			SwingUtilities.invokeAndWait(task);
+		} catch (Exception e) {
+			e.printStackTrace();
 		}
 	}
 
 	private void updateGpuPresenterState() {
+		boolean debugGpuPresenter = getUserSettings() != null && getUserSettings().isDebugGpuPresenter();
+		GPU_PRESENTER.setDebugEnabled(debugGpuPresenter);
+		if (debugGpuPresenter) {
+			System.out.println("[GPU] Toggle requested: " + (gpuEnabled ? "enable" : "disable")
+					+ " (thread=" + Thread.currentThread().getName() + ")");
+		}
 		if (gpuEnabled) {
 			rendererMode = RendererMode.GPU_PRESENTER;
 			GPU_PRESENTER.setVsyncEnabled(gpuVsync);
 			GPU_PRESENTER.setSkipUploadWhenUnfocused(gpuSkipUploadWhenUnfocused);
 			GPU_PRESENTER.setLinearFilter(gpuLinearFilter);
-			updateGameComponentHost(GPU_PRESENTER.getPresenterComponent());
+			GPU_PRESENTER.beginEnable();
+			Component presenterComponent = GPU_PRESENTER.createPresenterIfNeeded();
+			updateGameComponentHost(presenterComponent);
+			GPU_PRESENTER.markEnabled();
 		} else {
 			rendererMode = RendererMode.SOFTWARE;
-			GPU_PRESENTER.shutdown();
+			GPU_PRESENTER.beginDisable();
 			updateGameComponentHost(this);
+			GPU_PRESENTER.shutdown();
 		}
 	}
 
@@ -13859,6 +13883,27 @@ public class Client extends RSApplet {
 			int canvasWidth = component != null ? component.getWidth() : currentGameWidth;
 			int canvasHeight = component != null ? component.getHeight() : currentGameHeight;
 			GPU_PRESENTER.presentFrame(canvasWidth, canvasHeight, focused, gpuSharpen, gpuSaturation);
+			handleGpuPresenterMessages();
+		}
+	}
+
+	private void handleGpuPresenterMessages() {
+		String gpuInfo = GPU_PRESENTER.consumeGpuInfoMessage();
+		if (gpuInfo != null) {
+			pushMessage(gpuInfo, 0, "");
+			System.out.println(gpuInfo);
+		}
+
+		Throwable initFailure = GPU_PRESENTER.consumeInitFailure();
+		if (initFailure != null) {
+			System.err.println("GPU init failed; falling back to CPU. See console.");
+			initFailure.printStackTrace();
+			pushMessage("GPU init failed; falling back to CPU. See console.", 0, "");
+			if (gpuEnabled) {
+				gpuEnabled = false;
+				updateGpuPresenterState();
+				updateFpsCap(gpuFpsCap);
+			}
 		}
 	}
 
@@ -19185,7 +19230,7 @@ public class Client extends RSApplet {
 	private Sprite[] chatButtons;
 
 	Client() {
-		gameComponentHost.setGameComponent(this);
+		runOnEdt(() -> gameComponentHost.setGameComponent(this));
 		firstLoginMessage = "";
 		xpAddedPos = expAdded = 0;
 		xpLock = false;
