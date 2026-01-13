@@ -10,6 +10,11 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class PanelManager {
+	private static final int PANEL_HEADER_HEIGHT = 18;
+	private static final int PANEL_BACKGROUND = 0x141414;
+	private static final int PANEL_HEADER = 0x1c1c1c;
+	private static final int PANEL_BORDER = 0x2c2c2c;
+	private static final int PANEL_TEXT = 0xffffff;
 	private final List<UiPanel> panels = new ArrayList<>();
 	private int layoutWidth = -1;
 	private int layoutHeight = -1;
@@ -33,6 +38,7 @@ public class PanelManager {
 	public void drawPanels(Client client, boolean editMode) {
 		for (UiPanel panel : panels) {
 			if (panel.isVisible()) {
+				drawPanelBackground(client, panel);
 				panel.draw(client);
 				if (editMode && panel == activePanel) {
 					drawSelectionOutline(panel.getBounds());
@@ -174,15 +180,28 @@ public class PanelManager {
 
 		private static void populateRs3Panels(List<UiPanel> panels) {
 			int baseX = Math.max(0, Client.currentGameWidth - PANEL_WIDTH - PANEL_MARGIN);
-			int baseY = Math.max(0, Client.currentGameHeight - PANEL_HEIGHT - PANEL_MARGIN);
+			int inventoryY = Math.max(0, Client.currentGameHeight - PANEL_HEIGHT - PANEL_MARGIN);
+			int prayerY = inventoryY - PANEL_HEIGHT - PANEL_PADDING;
+			int magicY = prayerY - PANEL_HEIGHT - PANEL_PADDING;
 
-			int prayerY = Math.max(0, baseY - PANEL_HEIGHT - PANEL_PADDING);
-			int magicY = Math.max(0, prayerY - PANEL_HEIGHT - PANEL_PADDING);
+			if (magicY < PANEL_MARGIN) {
+				int shiftDown = PANEL_MARGIN - magicY;
+				magicY += shiftDown;
+				prayerY += shiftDown;
+				inventoryY += shiftDown;
+			}
 
-			panels.add(new InventoryPanel(1, new Rectangle(baseX, baseY, PANEL_WIDTH, PANEL_HEIGHT)));
+			int bottomOverflow = inventoryY + PANEL_HEIGHT + PANEL_MARGIN - Client.currentGameHeight;
+			if (bottomOverflow > 0) {
+				magicY -= bottomOverflow;
+				prayerY -= bottomOverflow;
+				inventoryY -= bottomOverflow;
+			}
+
+			panels.add(new InventoryPanel(1, new Rectangle(baseX, inventoryY, PANEL_WIDTH, PANEL_HEIGHT)));
 			panels.add(new PrayerPanel(2, new Rectangle(baseX, prayerY, PANEL_WIDTH, PANEL_HEIGHT)));
 			panels.add(new MagicPanel(3, new Rectangle(baseX, magicY, PANEL_WIDTH, PANEL_HEIGHT)));
-			panels.add(new EquipmentPanel(4, new Rectangle(baseX - PANEL_WIDTH - PANEL_PADDING, baseY, PANEL_WIDTH, PANEL_HEIGHT)));
+			panels.add(new EquipmentPanel(4, new Rectangle(baseX - PANEL_WIDTH - PANEL_PADDING, inventoryY, PANEL_WIDTH, PANEL_HEIGHT)));
 		}
 	}
 
@@ -236,10 +255,12 @@ public class PanelManager {
 
 	private abstract static class TabPanel extends BasePanel {
 		private final int tabIndex;
+		private final String title;
 
-		private TabPanel(int id, int tabIndex, Rectangle bounds) {
+		private TabPanel(int id, int tabIndex, Rectangle bounds, String title) {
 			super(id, bounds, true, true);
 			this.tabIndex = tabIndex;
+			this.title = title;
 		}
 
 		@Override
@@ -252,9 +273,17 @@ public class PanelManager {
 			if (rsInterface == null) {
 				return;
 			}
-			client.pushUiOffset(getBounds().x, getBounds().y);
+			Rectangle bounds = getBounds();
+			int clipLeft = DrawingArea.topX;
+			int clipTop = DrawingArea.topY;
+			int clipRight = DrawingArea.bottomX;
+			int clipBottom = DrawingArea.bottomY;
+
+			DrawingArea.setDrawingArea(bounds.y + bounds.height, bounds.x, bounds.x + bounds.width, bounds.y + PANEL_HEADER_HEIGHT);
+			client.pushUiOffset(bounds.x, bounds.y + PANEL_HEADER_HEIGHT);
 			client.drawInterfaceWithOffset(0, 0, rsInterface, 0);
 			client.popUiOffset();
+			DrawingArea.setDrawingArea(clipBottom, clipLeft, clipRight, clipTop);
 		}
 
 		@Override
@@ -267,8 +296,13 @@ public class PanelManager {
 			if (rsInterface == null) {
 				return false;
 			}
-			client.pushUiOffset(getBounds().x, getBounds().y);
-			client.buildInterfaceMenuWithOffset(0, rsInterface, mouseX, 0, mouseY, 0);
+			int adjustedMouseY = mouseY - PANEL_HEADER_HEIGHT;
+			if (adjustedMouseY < 0) {
+				return false;
+			}
+			Rectangle bounds = getBounds();
+			client.pushUiOffset(bounds.x, bounds.y + PANEL_HEADER_HEIGHT);
+			client.buildInterfaceMenuWithOffset(0, rsInterface, mouseX, 0, adjustedMouseY, 0);
 			client.popUiOffset();
 			return true;
 		}
@@ -276,19 +310,19 @@ public class PanelManager {
 
 	private static final class InventoryPanel extends TabPanel {
 		private InventoryPanel(int id, Rectangle bounds) {
-			super(id, 3, bounds);
+			super(id, 3, bounds, "Inventory");
 		}
 	}
 
 	private static final class PrayerPanel extends TabPanel {
 		private PrayerPanel(int id, Rectangle bounds) {
-			super(id, 5, bounds);
+			super(id, 5, bounds, "Prayer");
 		}
 	}
 
 	private static final class MagicPanel extends TabPanel {
 		private MagicPanel(int id, Rectangle bounds) {
-			super(id, 6, bounds);
+			super(id, 6, bounds, "Magic");
 		}
 	}
 
@@ -304,6 +338,21 @@ public class PanelManager {
 		@Override
 		public boolean handleMouse(Client client, int mouseX, int mouseY) {
 			return false;
+		}
+	}
+
+	private void drawPanelBackground(Client client, UiPanel panel) {
+		Rectangle bounds = panel.getBounds();
+		DrawingArea.drawPixels(bounds.height, bounds.y, bounds.x, PANEL_BACKGROUND, bounds.width);
+		DrawingArea.drawPixels(PANEL_HEADER_HEIGHT, bounds.y, bounds.x, PANEL_HEADER, bounds.width);
+		DrawingArea.drawPixels(1, bounds.y, bounds.x, PANEL_BORDER, bounds.width);
+		DrawingArea.drawPixels(1, bounds.y + bounds.height - 1, bounds.x, PANEL_BORDER, bounds.width);
+		DrawingArea.drawPixels(bounds.height, bounds.y, bounds.x, PANEL_BORDER, 1);
+		DrawingArea.drawPixels(bounds.height, bounds.y, bounds.x + bounds.width - 1, PANEL_BORDER, 1);
+		DrawingArea.drawPixels(1, bounds.y + PANEL_HEADER_HEIGHT, bounds.x, PANEL_BORDER, bounds.width);
+		if (panel instanceof TabPanel) {
+			TabPanel tabPanel = (TabPanel) panel;
+			client.newSmallFont.drawBasicString(tabPanel.title, bounds.x + 6, bounds.y + 13, PANEL_TEXT, 0);
 		}
 	}
 }

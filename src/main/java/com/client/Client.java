@@ -3284,6 +3284,9 @@ public class Client extends RSApplet {
 	private boolean drawingTabArea = false;
 
 	public void drawTabArea() {
+		if (isRs3InterfaceStyle()) {
+			return;
+		}
 		drawingTabArea = true;
 		boolean fixedMode = currentScreenMode == ScreenMode.FIXED;
 		if (fixedMode && loginScreenGraphicsBuffer == null && tabAreaGraphicsBuffer != null)
