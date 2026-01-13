@@ -11,6 +11,12 @@ public interface UiPanel {
 
 	boolean isVisible();
 
+	boolean draggable();
+
+	boolean contains(int mouseX, int mouseY);
+
+	void setPosition(int x, int y);
+
 	void draw(Client client);
 
 	boolean handleMouse(Client client, int mouseX, int mouseY);

@@ -233,13 +233,33 @@ public class Client extends RSApplet {
 
 	private void drawRs3Panels() {
 		panelManager.ensureRs3Layout(this);
-		panelManager.drawPanels(this);
+		panelManager.drawPanels(this, isRs3EditMode());
 	}
 
 	private void enforceRs3ScreenMode() {
 		if (isRs3InterfaceStyle() && currentScreenMode == ScreenMode.FIXED) {
 			setGameMode(ScreenMode.RESIZABLE, true);
 		}
+	}
+
+	private boolean isRs3EditMode() {
+		return isRs3InterfaceStyle() && getUserSettings() != null && getUserSettings().isRs3EditMode();
+	}
+
+	public void setRs3EditMode(boolean enabled) {
+		if (!isRs3InterfaceStyle()) {
+			getUserSettings().setRs3EditMode(false);
+			return;
+		}
+		boolean wasEnabled = getUserSettings().isRs3EditMode();
+		getUserSettings().setRs3EditMode(enabled);
+		if (wasEnabled && !enabled) {
+			panelManager.saveLayout(this);
+		}
+	}
+
+	public void resetRs3PanelLayout() {
+		panelManager.resetLayout(this);
 	}
 
 	private boolean screenFlashDrawing;
@@ -5033,7 +5053,11 @@ public class Client extends RSApplet {
 			inputTaken = true;
 			super.clickMode3 = 0;
 		}
-		if (!processMenuClick()) {
+		if (isRs3EditMode()) {
+			panelManager.ensureRs3Layout(this);
+			panelManager.handleEditModeInput(this, getMouseX(), getMouseY(), super.clickMode2 == 1);
+			super.clickMode3 = 0;
+		} else if (!processMenuClick()) {
 			processTabClick();
 			processMainScreenClick();
 
@@ -7445,6 +7469,14 @@ public class Client extends RSApplet {
 //		} catch (Exception e) {
 //			e.printStackTrace();
 //		}
+		if (isRs3InterfaceStyle()) {
+			panelManager.saveLayout(this);
+			try {
+				SettingsManager.saveSettings(this);
+			} catch (IOException e) {
+				e.printStackTrace();
+			}
+		}
 		Signlink.reporterror = false;
 		try {
 			if (socketStream != null)
@@ -9681,6 +9713,9 @@ public class Client extends RSApplet {
 
 	private void processRightClick() {
 		if (loggedIn) {
+			if (isRs3EditMode()) {
+				return;
+			}
 			if (activeInterfaceType != 0)
 				return;
 			menuActionName[0] = "Cancel";
