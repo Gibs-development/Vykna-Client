@@ -4201,7 +4201,11 @@ public class Client extends RSApplet {
 
 	public static void main(String args[]) {
 		System.out.println("Launching " + Configuration.CLIENT_TITLE + "..");
-		getClient(false, args);
+		try {
+			net.runelite.client.RuneLite.main(args);
+		} catch (Exception exception) {
+			exception.printStackTrace();
+		}
 	}
 
 	public static JFrame appFrame = null;

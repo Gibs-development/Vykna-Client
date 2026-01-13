@@ -7,7 +7,7 @@ plugins {
 
 java {
     toolchain {
-        languageVersion.set(JavaLanguageVersion.of(8))
+        languageVersion.set(JavaLanguageVersion.of(11))
     }
 }
 
@@ -35,6 +35,9 @@ sourceSets {
     named("main") {
         java.srcDirs(
             "src/main/java",
+            "runelite/runelite-api/src/main/java",
+            "runelite/http-api/src/main/java",
+            "runelite/runelite-client/src/main/java",
         )
         resources.srcDirs(
             "runelite/http-api/src/main/resources",
@@ -47,12 +50,17 @@ dependencies {
 
     /* Core */
     implementation("com.thoughtworks.xstream:xstream:1.4.7")
-    implementation("org.slf4j:slf4j-api:1.7.36")
-    implementation("ch.qos.logback:logback-classic:1.2.11")
-    implementation("com.google.guava:guava:31.1-jre")
-    implementation("commons-io:commons-io:2.11.0")
+    implementation("org.slf4j:slf4j-api:1.7.32")
+    implementation("ch.qos.logback:logback-classic:1.2.9")
+    implementation("com.google.guava:guava:30.1.1-jre") {
+        exclude(group = "com.google.code.findbugs", module = "jsr305")
+        exclude(group = "com.google.errorprone", module = "error_prone_annotations")
+        exclude(group = "com.google.j2objc", module = "j2objc-annotations")
+        exclude(group = "org.codehaus.mojo", module = "animal-sniffer-annotations")
+    }
+    implementation("commons-io:commons-io:2.8.0")
     implementation("org.apache.commons:commons-lang3:3.12.0")
-    implementation("com.google.code.gson:gson:2.9.0")
+    implementation("com.google.code.gson:gson:2.8.5")
 
     /* Jackson */
     implementation("com.fasterxml.jackson.core:jackson-core:2.13.3")
@@ -69,18 +77,28 @@ dependencies {
     /* Runelite */
     implementation("net.runelite.pushingpixels:trident:1.5.00")
     implementation("net.runelite.pushingpixels:substance:8.0.02")
-    implementation("net.runelite:discord:1.1")
-    implementation("com.google.inject:guice:4.2.2")
-    implementation("com.squareup.okhttp3:okhttp:4.3.0")
+    implementation("net.runelite:discord:1.4")
+    implementation("com.google.inject:guice:5.0.1")
+    implementation("com.squareup.okhttp3:okhttp:4.9.1")
+    implementation(platform("org.lwjgl:lwjgl-bom:3.3.1"))
+    implementation("org.lwjgl:lwjgl")
+    implementation("org.lwjgl:lwjgl-opengl")
+    implementation("org.lwjgl:lwjgl-opencl")
+    implementation("net.runelite:rlawt:1.3")
 
     /* Apache extras */
-    implementation("org.apache.commons:commons-csv:1.7")
-    implementation("org.apache.commons:commons-text:1.8")
+    implementation("org.apache.commons:commons-csv:1.9.0")
+    implementation("org.apache.commons:commons-text:1.9")
     implementation("net.sf.jopt-simple:jopt-simple:5.0.4")
 
     /* Lombok */
-    compileOnly("org.projectlombok:lombok:1.18.8")
-    annotationProcessor("org.projectlombok:lombok:1.18.8")
+    compileOnly("org.projectlombok:lombok:1.18.20")
+    annotationProcessor("org.projectlombok:lombok:1.18.20")
+
+    listOf("linux", "macos", "macos-arm64", "windows-x86", "windows").forEach {
+        runtimeOnly("org.lwjgl:lwjgl::natives-$it")
+        runtimeOnly("org.lwjgl:lwjgl-opengl::natives-$it")
+    }
 
     /* Testing */
     testImplementation("org.junit.jupiter:junit-jupiter-api:5.9.0")
@@ -134,4 +152,3 @@ tasks.register("buildJars") {
     dependsOn("createStandardJar")
     dependsOn("obfuscateStandard")
 }
-
