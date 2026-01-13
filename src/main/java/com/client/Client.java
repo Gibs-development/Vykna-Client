@@ -38,6 +38,8 @@ import com.client.ui.shell.VyknaShell;
 import com.client.utilities.*;
 import com.client.utilities.settings.Settings;
 import com.client.utilities.settings.SettingsManager;
+import com.client.utilities.settings.InterfaceStyle;
+import com.client.ui.panel.PanelManager;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Lists;
 import com.util.FileUtility;
@@ -79,6 +81,10 @@ import java.util.regex.Pattern;
 public class Client extends RSApplet {
 
 	private static final Logger logger = LoggerFactory.getLogger("Client");
+	private final PanelManager panelManager = new PanelManager();
+	private final Deque<Point> uiOffsetStack = new ArrayDeque<>();
+	private int uiOffsetX;
+	private int uiOffsetY;
 	public String lastViewedDropTable;
 	private static final int CUTSCENE_FIXED_ZOOM_BONUS = 350;
 	// Fade behaviour
@@ -194,6 +200,46 @@ public class Client extends RSApplet {
 
 		DrawingArea.drawTransparentBox(xPos, yPos, 10, 10, 0xffffff, 255);
 		newSmallFont.drawCenteredString("(" + (xPos + 4) + ", " + (yPos + 4) + ")", xPos + 4, yPos - 1, 0xffff00, 0);
+	}
+
+	public void pushUiOffset(int dx, int dy) {
+		uiOffsetStack.push(new Point(uiOffsetX, uiOffsetY));
+		uiOffsetX += dx;
+		uiOffsetY += dy;
+	}
+
+	public void popUiOffset() {
+		if (uiOffsetStack.isEmpty()) {
+			uiOffsetX = 0;
+			uiOffsetY = 0;
+			return;
+		}
+		Point previous = uiOffsetStack.pop();
+		uiOffsetX = previous.x;
+		uiOffsetY = previous.y;
+	}
+
+	public void drawInterfaceWithOffset(int scrollPosition, int xPosition, RSInterface rsInterface, int yPosition) {
+		drawInterface(scrollPosition, xPosition + uiOffsetX, rsInterface, yPosition + uiOffsetY);
+	}
+
+	public void buildInterfaceMenuWithOffset(int xPosition, RSInterface rsInterface, int mouseX, int yPosition, int mouseY, int scrollPosition) {
+		buildInterfaceMenu(xPosition + uiOffsetX, rsInterface, mouseX + uiOffsetX, yPosition + uiOffsetY, mouseY + uiOffsetY, scrollPosition);
+	}
+
+	private boolean isRs3InterfaceStyle() {
+		return getUserSettings() != null && getUserSettings().getInterfaceStyle() == InterfaceStyle.RS3;
+	}
+
+	private void drawRs3Panels() {
+		panelManager.ensureRs3Layout(this);
+		panelManager.drawPanels(this);
+	}
+
+	private void enforceRs3ScreenMode() {
+		if (isRs3InterfaceStyle() && currentScreenMode == ScreenMode.FIXED) {
+			setGameMode(ScreenMode.RESIZABLE, true);
+		}
 	}
 
 	private boolean screenFlashDrawing;
@@ -433,6 +479,9 @@ public class Client extends RSApplet {
 	}
 
 	public void setGameMode(ScreenMode mode, boolean serialize) {
+		if (isRs3InterfaceStyle() && mode == ScreenMode.FIXED) {
+			mode = ScreenMode.RESIZABLE;
+		}
 		if (currentScreenMode == mode)
 			return;
 
@@ -447,6 +496,10 @@ public class Client extends RSApplet {
 	}
 
 	public void setGameMode(ScreenMode mode, Dimension size, boolean serialize) {
+		if (isRs3InterfaceStyle() && mode == ScreenMode.FIXED) {
+			mode = ScreenMode.RESIZABLE;
+			size = new Dimension(mode.getWidth(), mode.getHeight());
+		}
 		if (currentScreenMode == mode)
 			return;
 
@@ -5291,6 +5344,9 @@ public class Client extends RSApplet {
 
 		switch (buttonPressed) {
 			case 42522:
+				if (isRs3InterfaceStyle()) {
+					break;
+				}
 				if (currentScreenMode != ScreenMode.FIXED) {
 					setConfigButton(i, true);
 					setConfigButton(23003, false);
@@ -5301,6 +5357,9 @@ public class Client extends RSApplet {
 				break;
 
 			case 42523:
+				if (isRs3InterfaceStyle()) {
+					break;
+				}
 				/*if (currentScreenMode == ScreenMode.RESIZABLE) {
 					setConfigButton(i, true);
 					setConfigButton(23001, false);
@@ -6972,6 +7031,7 @@ public class Client extends RSApplet {
 		setConfigButton(23001, true);
 		setConfigButton(953, true);
 
+		setDropDown(SettingsInterface.INTERFACE_STYLE, getUserSettings().getInterfaceStyle() == InterfaceStyle.RS3 ? 1 : 0);
 		setDropDown(SettingsInterface.OLD_GAMEFRAME, getUserSettings().isOldGameframe());
 		setDropDown(SettingsInterface.GAME_TIMERS, getUserSettings().isGameTimers());
 		setDropDown(SettingsInterface.ANTI_ALIASING, getUserSettings().isAntiAliasing());
@@ -9416,6 +9476,9 @@ public class Client extends RSApplet {
 	}
 
 	public void processTabClick() {
+		if (isRs3InterfaceStyle()) {
+			return;
+		}
 		if (clickMode3 == 1) {
 			if (currentScreenMode == ScreenMode.FIXED) {
 				int x = 516;
@@ -9674,7 +9737,10 @@ public class Client extends RSApplet {
 			anInt886 = 0;
 			anInt1315 = 0;
 			resetTabInterfaceHover();
-			if (currentScreenMode == ScreenMode.FIXED) {
+			if (isRs3InterfaceStyle()) {
+				panelManager.ensureRs3Layout(this);
+				panelManager.handleMouse(this, getMouseX(), getMouseY());
+			} else if (currentScreenMode == ScreenMode.FIXED) {
 				if (getMouseX() > 516 && getMouseY() > 205 && getMouseX() < 765 && getMouseY() < 466) {
 					if (invOverlayInterfaceID != 0) {
 						buildInterfaceMenu(547, RSInterface.interfaceCache[invOverlayInterfaceID], getMouseX(), 205, getMouseY(),
@@ -11010,6 +11076,7 @@ public class Client extends RSApplet {
 
 
 		SettingsManager.loadSettings();
+		enforceRs3ScreenMode();
 		ClientScripts.load();
 		drawLoadingText(10, "Loading title screen - 0%");
 		if (Signlink.sunjava) {
@@ -18846,7 +18913,11 @@ public class Client extends RSApplet {
 			if (!inCutScene) {
 				if (loginScreenGraphicsBuffer == null && currentScreenMode != ScreenMode.FIXED) {
 					drawMinimap();
-					drawTabArea();
+					if (isRs3InterfaceStyle()) {
+						drawRs3Panels();
+					} else {
+						drawTabArea();
+					}
 					drawChatArea();
 				}
 			}
