@@ -854,12 +854,18 @@ public final class VyknaShell extends JFrame {
         private void addRs3EditModeControls(Settings settings) {
             rs3EditModeToggle = pillToggle(settings.isRs3EditMode());
             rs3EditModeToggle.addActionListener(e -> {
-                if (settings.getInterfaceStyle() != InterfaceStyle.RS3) {
+                Settings currentSettings = Client.getUserSettings();
+                if (currentSettings == null || currentSettings.getInterfaceStyle() != InterfaceStyle.RS3) {
                     rs3EditModeToggle.setSelected(false);
                     syncToggleVisual(rs3EditModeToggle);
                     return;
                 }
-                Client.getInstance().setRs3EditMode(rs3EditModeToggle.isSelected());
+                Client instance = Client.getInstance();
+                if (instance != null) {
+                    instance.setRs3EditMode(rs3EditModeToggle.isSelected());
+                } else {
+                    currentSettings.setRs3EditMode(rs3EditModeToggle.isSelected());
+                }
                 persistSettings();
                 syncToggleVisual(rs3EditModeToggle);
             });
