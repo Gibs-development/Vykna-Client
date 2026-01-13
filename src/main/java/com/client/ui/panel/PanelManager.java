@@ -5,6 +5,7 @@ import com.client.DrawingArea;
 import com.client.graphics.interfaces.RSInterface;
 import com.client.utilities.settings.Settings;
 
+import java.awt.Dimension;
 import java.awt.Rectangle;
 import java.util.ArrayList;
 import java.util.List;
@@ -15,6 +16,7 @@ public class PanelManager {
 	private static final int PANEL_HEADER = 0x1c1c1c;
 	private static final int PANEL_BORDER = 0x2c2c2c;
 	private static final int PANEL_TEXT = 0xffffff;
+	private static final int RESIZE_HANDLE_SIZE = 12;
 	public static final int PANEL_ID_INVENTORY = 1;
 	public static final int PANEL_ID_PRAYER = 2;
 	public static final int PANEL_ID_MAGIC = 3;
@@ -29,16 +31,22 @@ public class PanelManager {
 	public static final int PANEL_ID_MUSIC = 12;
 	public static final int PANEL_ID_NOTES = 13;
 	public static final int PANEL_ID_LOGOUT = 14;
-	public static final int PANEL_ID_MINIMAP = 20;
+	public static final int PANEL_ID_MINIMAP_BASE = 20;
 	public static final int PANEL_ID_CHAT = 21;
 	public static final int PANEL_ID_TAB_BAR = 22;
+	public static final int PANEL_ID_ORBS = 23;
 	private final List<UiPanel> panels = new ArrayList<>();
 	private int layoutWidth = -1;
 	private int layoutHeight = -1;
 	private UiPanel activePanel;
 	private boolean dragging;
+	private boolean resizing;
 	private int dragOffsetX;
 	private int dragOffsetY;
+	private int resizeStartX;
+	private int resizeStartY;
+	private int resizeStartWidth;
+	private int resizeStartHeight;
 	private boolean mouseDownLastFrame;
 
 	public void ensureRs3Layout(Client client) {
@@ -57,15 +65,18 @@ public class PanelManager {
 			if (panel.isVisible()) {
 				drawPanelBackground(client, panel);
 				panel.draw(client);
-				if (editMode && panel == activePanel) {
-					drawSelectionOutline(panel.getBounds());
+				if (editMode) {
+					drawResizeHandle(panel);
+					if (panel == activePanel) {
+						drawSelectionOutline(panel.getBounds());
+					}
 				}
 			}
 		}
 	}
 
 	public boolean handleMouse(Client client, int mouseX, int mouseY) {
-		if (dragging) {
+		if (dragging || resizing) {
 			return false;
 		}
 		for (int index = panels.size() - 1; index >= 0; index--) {
@@ -82,7 +93,7 @@ public class PanelManager {
 	}
 
 	public boolean handleClick(Client client, int mouseX, int mouseY, boolean mouseClicked) {
-		if (!mouseClicked || dragging) {
+		if (!mouseClicked || dragging || resizing) {
 			return false;
 		}
 		for (int index = panels.size() - 1; index >= 0; index--) {
@@ -99,14 +110,24 @@ public class PanelManager {
 	}
 
 	public void handleEditModeInput(Client client, int mouseX, int mouseY, boolean mouseDown) {
-		if (!mouseDown && mouseDownLastFrame && dragging) {
+		if (!mouseDown && mouseDownLastFrame && (dragging || resizing)) {
 			dragging = false;
+			resizing = false;
 			saveLayoutToSettings(client);
 		}
 
 		if (mouseDown && !mouseDownLastFrame) {
 			UiPanel hit = getTopmostPanelAt(mouseX, mouseY);
-			if (hit != null && hit.draggable()) {
+			if (hit != null && hit.resizable() && isOnResizeHandle(hit, mouseX, mouseY)) {
+				activePanel = hit;
+				bringToFront(hit);
+				Rectangle bounds = hit.getBounds();
+				resizeStartX = mouseX;
+				resizeStartY = mouseY;
+				resizeStartWidth = bounds.width;
+				resizeStartHeight = bounds.height;
+				resizing = true;
+			} else if (hit != null && hit.draggable()) {
 				activePanel = hit;
 				bringToFront(hit);
 				Rectangle bounds = hit.getBounds();
@@ -125,6 +146,32 @@ public class PanelManager {
 			newX = clamp(newX, 0, Client.currentGameWidth - bounds.width);
 			newY = clamp(newY, 0, Client.currentGameHeight - bounds.height);
 			activePanel.setPosition(newX, newY);
+		}
+
+		if (mouseDown && resizing && activePanel != null) {
+			int deltaX = mouseX - resizeStartX;
+			int deltaY = mouseY - resizeStartY;
+			int newWidth = resizeStartWidth + deltaX;
+			int newHeight = resizeStartHeight + deltaY;
+			if (activePanel.keepAspectRatio()) {
+				int size = Math.max(newWidth, newHeight);
+				newWidth = size;
+				newHeight = size;
+			}
+			if (activePanel instanceof InventoryPanel) {
+				Dimension clamped = ((InventoryPanel) activePanel).clampSizeForResize(newWidth, newHeight, client);
+				newWidth = clamped.width;
+				newHeight = clamped.height;
+			}
+			newWidth = Math.max(activePanel.getMinWidth(), newWidth);
+			newHeight = Math.max(activePanel.getMinHeight(), newHeight);
+			Rectangle bounds = activePanel.getBounds();
+			int maxWidth = Math.max(activePanel.getMinWidth(), Client.currentGameWidth - bounds.x);
+			int maxHeight = Math.max(activePanel.getMinHeight(), Client.currentGameHeight - bounds.y);
+			newWidth = Math.min(newWidth, maxWidth);
+			newHeight = Math.min(newHeight, maxHeight);
+			activePanel.setSize(newWidth, newHeight);
+			activePanel.onResize(client);
 		}
 
 		mouseDownLastFrame = mouseDown;
@@ -173,7 +220,7 @@ public class PanelManager {
 	}
 
 	public boolean isDragging() {
-		return dragging;
+		return dragging || resizing;
 	}
 
 	private UiPanel getTopmostPanelAt(int mouseX, int mouseY) {
@@ -245,8 +292,10 @@ public class PanelManager {
 		private static final int PANEL_HEIGHT = 260 + PANEL_HEADER_HEIGHT;
 		private static final int PANEL_PADDING = 8;
 		private static final int PANEL_MARGIN = 10;
-		private static final int MINIMAP_PANEL_WIDTH = 190;
-		private static final int MINIMAP_PANEL_HEIGHT = 190 + PANEL_HEADER_HEIGHT;
+		private static final int MINIMAP_PANEL_WIDTH = 200;
+		private static final int MINIMAP_PANEL_HEIGHT = 200 + PANEL_HEADER_HEIGHT;
+		private static final int ORBS_PANEL_WIDTH = 200;
+		private static final int ORBS_PANEL_HEIGHT = 175 + PANEL_HEADER_HEIGHT;
 		private static final int CHAT_PANEL_WIDTH = 516;
 		private static final int CHAT_PANEL_HEIGHT = 165 + PANEL_HEADER_HEIGHT;
 		private static final int TAB_BAR_PANEL_WIDTH = 76;
@@ -289,11 +338,14 @@ public class PanelManager {
 
 			int minimapX = Math.max(PANEL_MARGIN, Client.currentGameWidth - MINIMAP_PANEL_WIDTH - PANEL_MARGIN);
 			int minimapY = PANEL_MARGIN;
+			int orbsX = minimapX - PANEL_PADDING;
+			int orbsY = minimapY + MINIMAP_PANEL_HEIGHT + PANEL_PADDING;
 			int chatX = PANEL_MARGIN;
 			int chatY = Math.max(PANEL_MARGIN, Client.currentGameHeight - CHAT_PANEL_HEIGHT - PANEL_MARGIN);
 			int tabBarX = Math.max(PANEL_MARGIN, minimapX - TAB_BAR_PANEL_WIDTH - PANEL_PADDING);
 			int tabBarY = minimapY;
-			panels.add(new MinimapPanel(PANEL_ID_MINIMAP, new Rectangle(minimapX, minimapY, MINIMAP_PANEL_WIDTH, MINIMAP_PANEL_HEIGHT)));
+			panels.add(new MinimapBasePanel(PANEL_ID_MINIMAP_BASE, new Rectangle(minimapX, minimapY, MINIMAP_PANEL_WIDTH, MINIMAP_PANEL_HEIGHT)));
+			panels.add(new OrbsPanel(PANEL_ID_ORBS, new Rectangle(orbsX, orbsY, ORBS_PANEL_WIDTH, ORBS_PANEL_HEIGHT)));
 			panels.add(new ChatPanel(PANEL_ID_CHAT, new Rectangle(chatX, chatY, CHAT_PANEL_WIDTH, CHAT_PANEL_HEIGHT)));
 			panels.add(new TabBarPanel(PANEL_ID_TAB_BAR, new Rectangle(tabBarX, tabBarY, TAB_BAR_PANEL_WIDTH, TAB_BAR_PANEL_HEIGHT)));
 		}
@@ -305,13 +357,26 @@ public class PanelManager {
 		private boolean visible;
 		private final boolean draggable;
 		private final String title;
+		private final boolean resizable;
+		private final int minWidth;
+		private final int minHeight;
+		private final boolean keepAspectRatio;
 
 		BasePanel(int id, Rectangle bounds, boolean visible, boolean draggable, String title) {
+			this(id, bounds, visible, draggable, title, false, bounds.width, bounds.height, false);
+		}
+
+		BasePanel(int id, Rectangle bounds, boolean visible, boolean draggable, String title,
+				 boolean resizable, int minWidth, int minHeight, boolean keepAspectRatio) {
 			this.id = id;
 			this.bounds = bounds;
 			this.visible = visible;
 			this.draggable = draggable;
 			this.title = title;
+			this.resizable = resizable;
+			this.minWidth = minWidth;
+			this.minHeight = minHeight;
+			this.keepAspectRatio = keepAspectRatio;
 		}
 
 		@Override
@@ -350,6 +415,11 @@ public class PanelManager {
 		}
 
 		@Override
+		public void setSize(int width, int height) {
+			bounds.setSize(width, height);
+		}
+
+		@Override
 		public void draw(Client client) {
 
 		}
@@ -367,6 +437,26 @@ public class PanelManager {
 		public boolean handleClick(Client client, int mouseX, int mouseY) {
 			return false;
 		}
+
+		@Override
+		public boolean resizable() {
+			return resizable;
+		}
+
+		@Override
+		public int getMinWidth() {
+			return minWidth;
+		}
+
+		@Override
+		public int getMinHeight() {
+			return minHeight;
+		}
+
+		@Override
+		public boolean keepAspectRatio() {
+			return keepAspectRatio;
+		}
 	}
 
 	static class TabPanel extends BasePanel {
@@ -374,6 +464,11 @@ public class PanelManager {
 
 		private TabPanel(int id, int tabIndex, Rectangle bounds, String title, boolean visible) {
 			super(id, bounds, visible, true, title);
+			this.tabIndex = tabIndex;
+		}
+
+		TabPanel(int id, int tabIndex, Rectangle bounds, String title, boolean visible, boolean resizable, int minWidth, int minHeight) {
+			super(id, bounds, visible, true, title, resizable, minWidth, minHeight, false);
 			this.tabIndex = tabIndex;
 		}
 
@@ -422,12 +517,6 @@ public class PanelManager {
 		}
 	}
 
-	private static final class InventoryPanel extends TabPanel {
-		private InventoryPanel(int id, Rectangle bounds) {
-			super(id, 3, bounds, "Inventory", true);
-		}
-	}
-
 	private static final class PrayerPanel extends TabPanel {
 		private PrayerPanel(int id, Rectangle bounds) {
 			super(id, 5, bounds, "Prayer", true);
@@ -447,9 +536,15 @@ public class PanelManager {
 	}
 
 	private void drawPanelBackground(Client client, UiPanel panel) {
+		int backgroundColor = PANEL_BACKGROUND;
+		Settings settings = Client.getUserSettings();
+		if (settings != null) {
+			backgroundColor = settings.getRs3PanelBackgroundColor();
+		}
+		int headerColor = adjustColor(backgroundColor, 10);
 		Rectangle bounds = panel.getBounds();
-		DrawingArea.drawPixels(bounds.height, bounds.y, bounds.x, PANEL_BACKGROUND, bounds.width);
-		DrawingArea.drawPixels(PANEL_HEADER_HEIGHT, bounds.y, bounds.x, PANEL_HEADER, bounds.width);
+		DrawingArea.drawPixels(bounds.height, bounds.y, bounds.x, backgroundColor, bounds.width);
+		DrawingArea.drawPixels(PANEL_HEADER_HEIGHT, bounds.y, bounds.x, headerColor, bounds.width);
 		DrawingArea.drawPixels(1, bounds.y, bounds.x, PANEL_BORDER, bounds.width);
 		DrawingArea.drawPixels(1, bounds.y + bounds.height - 1, bounds.x, PANEL_BORDER, bounds.width);
 		DrawingArea.drawPixels(bounds.height, bounds.y, bounds.x, PANEL_BORDER, 1);
@@ -459,5 +554,33 @@ public class PanelManager {
 		if (title != null && !title.isEmpty()) {
 			client.newSmallFont.drawBasicString(title, bounds.x + 6, bounds.y + 13, PANEL_TEXT, 0);
 		}
+	}
+
+	private void drawResizeHandle(UiPanel panel) {
+		if (!panel.resizable()) {
+			return;
+		}
+		Rectangle bounds = panel.getBounds();
+		int x = bounds.x + bounds.width - RESIZE_HANDLE_SIZE;
+		int y = bounds.y + bounds.height - RESIZE_HANDLE_SIZE;
+		DrawingArea.drawPixels(RESIZE_HANDLE_SIZE, y, x, 0x2a2a2a, RESIZE_HANDLE_SIZE);
+		DrawingArea.drawPixels(1, y, x, 0x3a3a3a, RESIZE_HANDLE_SIZE);
+		DrawingArea.drawPixels(1, y + RESIZE_HANDLE_SIZE - 1, x, 0x3a3a3a, RESIZE_HANDLE_SIZE);
+		DrawingArea.drawPixels(RESIZE_HANDLE_SIZE, y, x, 0x3a3a3a, 1);
+		DrawingArea.drawPixels(RESIZE_HANDLE_SIZE, y, x + RESIZE_HANDLE_SIZE - 1, 0x3a3a3a, 1);
+	}
+
+	private boolean isOnResizeHandle(UiPanel panel, int mouseX, int mouseY) {
+		Rectangle bounds = panel.getBounds();
+		int handleX = bounds.x + bounds.width - RESIZE_HANDLE_SIZE;
+		int handleY = bounds.y + bounds.height - RESIZE_HANDLE_SIZE;
+		return mouseX >= handleX && mouseY >= handleY;
+	}
+
+	private int adjustColor(int color, int delta) {
+		int r = Math.min(255, Math.max(0, ((color >> 16) & 0xff) + delta));
+		int g = Math.min(255, Math.max(0, ((color >> 8) & 0xff) + delta));
+		int b = Math.min(255, Math.max(0, (color & 0xff) + delta));
+		return (r << 16) | (g << 8) | b;
 	}
 }

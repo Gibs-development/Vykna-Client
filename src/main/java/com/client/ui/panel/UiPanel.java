@@ -19,9 +19,30 @@ public interface UiPanel {
 
 	void setPosition(int x, int y);
 
+	void setSize(int width, int height);
+
 	void draw(Client client);
 
 	boolean handleMouse(Client client, int mouseX, int mouseY);
 
     boolean handleClick(Client client, int mouseX, int mouseY);
+
+	default boolean resizable() {
+		return false;
+	}
+
+	default int getMinWidth() {
+		return getBounds().width;
+	}
+
+	default int getMinHeight() {
+		return getBounds().height;
+	}
+
+	default boolean keepAspectRatio() {
+		return false;
+	}
+
+	default void onResize(Client client) {
+	}
 }

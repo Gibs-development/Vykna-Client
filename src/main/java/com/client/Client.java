@@ -34,6 +34,7 @@ import com.client.sound.MidiPlayer;
 import com.client.sound.Sound;
 import com.client.sound.SoundType;
 import com.client.ui.DevConsole;
+import com.client.ui.panel.UiPanel;
 import com.client.ui.shell.VyknaShell;
 import com.client.utilities.*;
 import com.client.utilities.settings.Settings;
@@ -91,9 +92,22 @@ public class Client extends RSApplet {
 	private boolean rs3MinimapOverride;
 	private int rs3MinimapBaseX;
 	private int rs3MinimapBaseY;
+	private int rs3MinimapWidth;
+	private int rs3MinimapHeight;
+	private int rs3MinimapContentX;
+	private int rs3MinimapContentY;
+	private int rs3MinimapContentSize;
+	private int[] rs3MinimapMaskOffsets;
+	private int[] rs3MinimapMaskWidths;
+	private int rs3MinimapMaskSize;
+	private boolean rs3OrbsOverride;
+	private int rs3OrbsBaseX;
+	private int rs3OrbsBaseY;
 	private boolean rs3ChatOverride;
 	private int rs3ChatBaseX;
 	private int rs3ChatBaseY;
+	private int rs3ChatWidth;
+	private int rs3ChatHeight;
 	public String lastViewedDropTable;
 	private static final int CUTSCENE_FIXED_ZOOM_BONUS = 350;
 	// Fade behaviour
@@ -243,22 +257,37 @@ public class Client extends RSApplet {
 	private void drawRs3Panels() {
 		panelManager.ensureRs3Layout(this);
 		panelManager.drawPanels(this, isRs3EditMode());
+		if (isRs3EditMode()) {
+			newSmallFont.drawBasicString("EDIT MODE", 8, 14, 0xffcc66, 0);
+		}
 	}
 
-	public void drawMinimapAt(int x, int y) {
+	public void drawMinimapAt(int x, int y, int width, int height) {
 		rs3MinimapOverride = true;
 		rs3MinimapBaseX = x;
 		rs3MinimapBaseY = y;
+		rs3MinimapWidth = width;
+		rs3MinimapHeight = height;
 		drawMinimap();
 		rs3MinimapOverride = false;
 	}
 
-	public void drawChatAreaAt(int x, int y) {
+	public void drawChatAreaAt(int x, int y, int width, int height) {
 		rs3ChatOverride = true;
 		rs3ChatBaseX = x;
 		rs3ChatBaseY = y;
+		rs3ChatWidth = width;
+		rs3ChatHeight = height;
 		drawChatArea();
 		rs3ChatOverride = false;
+	}
+
+	public void drawOrbsAt(int x, int y) {
+		rs3OrbsOverride = true;
+		rs3OrbsBaseX = x;
+		rs3OrbsBaseY = y;
+		drawOrbs();
+		rs3OrbsOverride = false;
 	}
 
 	private void enforceRs3ScreenMode() {
@@ -571,6 +600,7 @@ public class Client extends RSApplet {
 				if (appFrame instanceof VyknaShell) {
 					VyknaShell shell = (VyknaShell) appFrame;
 					shell.updateGameSize(new Dimension(clientWidth, clientHeight));
+					shell.updateResizableState(mode, getUserSettings().getInterfaceStyle());
 					appFrame.revalidate();
 					appFrame.repaint();
 				} else {
@@ -754,7 +784,7 @@ public class Client extends RSApplet {
 		int textColor[] = { 65280, 0xffff00, 0xff0000, 65535 };
 
 		if (hideChatArea) {
-			channelButtons.drawSprite(xOffset, yOffset + CHAT_AREA_HEIGHT - 23);
+			channelButtons.drawSprite(xOffset, yOffset + getChatAreaHeight() - 23);
 		}
 
 		switch (channelButtonClickPosition) {
@@ -873,8 +903,10 @@ public class Client extends RSApplet {
 		if (useChatBuffer && loginScreenGraphicsBuffer == null)
 			chatAreaGraphicsBuffer.initDrawingArea();
 
+		final int chatAreaWidth = getChatAreaWidth();
+		final int chatAreaHeight = getChatAreaHeight();
 		final int xOffset = rs3ChatOverride ? rs3ChatBaseX : 0;
-		final int yOffset = rs3ChatOverride ? rs3ChatBaseY : (currentScreenMode == ScreenMode.FIXED ? 0 : currentGameHeight - CHAT_AREA_HEIGHT);
+		final int yOffset = rs3ChatOverride ? rs3ChatBaseY : (currentScreenMode == ScreenMode.FIXED ? 0 : currentGameHeight - chatAreaHeight);
 		final int yOffset2 = rs3ChatOverride ? rs3ChatBaseY : (currentScreenMode == ScreenMode.FIXED ? 338 : 0);
 
 		Rasterizer.anIntArray1472 = anIntArray1180;
@@ -883,13 +915,17 @@ public class Client extends RSApplet {
 			drawChannelButtons(xOffset, yOffset);
 
 		if (!hideChatArea) {
-			chatArea.drawSprite(xOffset, yOffset);
+			if (!rs3ChatOverride) {
+				chatArea.drawSprite(xOffset, yOffset);
+			} else {
+				DrawingArea.drawPixels(chatAreaHeight, yOffset, xOffset, 0x141414, chatAreaWidth);
+			}
 			drawChannelButtons(xOffset, yOffset);
 			drawChannelBar(xOffset, yOffset);
 			TextDrawingArea textDrawingArea = aTextDrawingArea_1271;
 			int focusTop = rs3ChatOverride ? yOffset + 1 : (currentScreenMode == ScreenMode.FIXED ? 335 : currentGameHeight - 164);
-			int focusBottom = rs3ChatOverride ? yOffset + 135 : (currentScreenMode == ScreenMode.FIXED ? 484 : currentGameHeight - 30);
-			if (super.getSaveClickX() >= xOffset && super.getSaveClickX() <= xOffset + CHAT_AREA_WIDTH + 2) {
+			int focusBottom = rs3ChatOverride ? yOffset + chatAreaHeight - 30 : (currentScreenMode == ScreenMode.FIXED ? 484 : currentGameHeight - 30);
+			if (super.getSaveClickX() >= xOffset && super.getSaveClickX() <= xOffset + chatAreaWidth + 2) {
 				if (super.getSaveClickY() >= focusTop && super.getSaveClickY() <= focusBottom) {
 					if (this.isFieldInFocus()) {
 						Client.inputString = "";
@@ -1180,9 +1216,10 @@ public class Client extends RSApplet {
 					}
 				DrawingArea.defaultDrawingAreaSize();
 				chatAreaScrollLength = j * 14 + 7 + 5;
-				if (chatAreaScrollLength < 111)
-					chatAreaScrollLength = 111;
-				drawScrollbar(114, chatAreaScrollLength - anInt1089 - 113, 6 + yOffset, xOffset + 496, chatAreaScrollLength);
+				int scrollHeight = getChatScrollHeight(chatAreaHeight);
+				if (chatAreaScrollLength < scrollHeight - 3)
+					chatAreaScrollLength = scrollHeight - 3;
+				drawScrollbar(scrollHeight, chatAreaScrollLength - anInt1089 - (scrollHeight - 1), 6 + yOffset, xOffset + chatAreaWidth - 20, chatAreaScrollLength);
 				String fixedString;
 				if (myPlayer != null && myPlayer.displayName != null) {
 					if (myPlayer.title.length() > 0) {
@@ -1223,7 +1260,8 @@ public class Client extends RSApplet {
 					newRegularFont.drawBasicString(inputString + "*", xOffset + nameOffset, 133 + yOffset, 255, -1, false);
 				}
 
-				DrawingArea.method339(120 + yOffset, 0x807660, 506, xOffset + 7);
+				int lineWidth = rs3ChatOverride ? Math.max(100, getChatAreaWidth() - 10) : 506;
+				DrawingArea.method339(120 + yOffset, 0x807660, lineWidth, xOffset + 7);
 			}
 
 		}
@@ -1240,20 +1278,37 @@ public class Client extends RSApplet {
 		Rasterizer.anIntArray1472 = anIntArray1182;
 	}
 
-	public void updateChatScroll(int mouseX, int mouseY, int baseX, int baseY) {
+	private int getChatAreaWidth() {
+		return rs3ChatOverride ? rs3ChatWidth : CHAT_AREA_WIDTH;
+	}
+
+	private int getChatAreaHeight() {
+		return rs3ChatOverride ? rs3ChatHeight : CHAT_AREA_HEIGHT;
+	}
+
+	private int getChatScrollHeight(int chatAreaHeight) {
+		return Math.max(90, chatAreaHeight - 51);
+	}
+
+	public void updateChatScroll(int mouseX, int mouseY, int baseX, int baseY, int width, int height) {
 		if (backDialogID != -1 || inputDialogState == 3) {
 			return;
 		}
-		aClass9_1059.scrollPosition = chatAreaScrollLength - anInt1089 - 110;
+		int chatAreaWidth = width;
+		int chatAreaHeight = height;
+		int scrollHeight = getChatScrollHeight(chatAreaHeight);
+		int scrollInputHeight = Math.max(80, scrollHeight - 4);
+		aClass9_1059.scrollPosition = chatAreaScrollLength - anInt1089 - scrollInputHeight;
 		int scrollTop = baseY + (currentScreenMode == ScreenMode.FIXED ? 4 : 6);
 		int scrollInputTop = baseY + 10;
-		if (mouseX > baseX + 478 && mouseX < baseX + 580 && mouseY > scrollTop)
-			method65(494, 110, mouseX, mouseY - scrollInputTop, aClass9_1059, 0, false, chatAreaScrollLength);
-		int i = chatAreaScrollLength - 110 - aClass9_1059.scrollPosition;
+		int scrollBarX = baseX + chatAreaWidth - 38;
+		if (mouseX > scrollBarX && mouseX < baseX + chatAreaWidth && mouseY > scrollTop)
+			method65(chatAreaWidth - 22, scrollInputHeight, mouseX, mouseY - scrollInputTop, aClass9_1059, 0, false, chatAreaScrollLength);
+		int i = chatAreaScrollLength - scrollInputHeight - aClass9_1059.scrollPosition;
 		if (i < 0)
 			i = 0;
-		if (i > chatAreaScrollLength - 110)
-			i = chatAreaScrollLength - 110;
+		if (i > chatAreaScrollLength - scrollInputHeight)
+			i = chatAreaScrollLength - scrollInputHeight;
 		if (anInt1089 != i) {
 			anInt1089 = i;
 			inputTaken = true;
@@ -1393,7 +1448,17 @@ public class Client extends RSApplet {
 	private final void minimapHovers() {
 		final boolean fixed = currentScreenMode == ScreenMode.FIXED;
 		if (rs3MinimapOverride) {
-			updateRs3MinimapHovers(super.getMouseX(), super.getMouseY(), rs3MinimapBaseX, rs3MinimapBaseY);
+			updateRs3MinimapHovers(super.getMouseX(), super.getMouseY(), rs3MinimapBaseX, rs3MinimapBaseY, rs3MinimapWidth, rs3MinimapHeight);
+			return;
+		}
+		if (isRs3InterfaceStyle()) {
+			UiPanel orbsPanel = panelManager.getPanel(PanelManager.PANEL_ID_ORBS);
+			if (orbsPanel != null && orbsPanel.isVisible()) {
+				Rectangle bounds = orbsPanel.getBounds();
+				updateRs3OrbHovers(super.getMouseX(), super.getMouseY(), bounds.x, bounds.y + PanelManager.PANEL_HEADER_HEIGHT);
+			} else {
+				clearOrbHovers();
+			}
 			return;
 		}
 		prayHover = fixed
@@ -1429,19 +1494,26 @@ public class Client extends RSApplet {
 				super.getMouseX() >= currentGameWidth - 65 && super.getMouseX() <= currentGameWidth && super.getMouseY() >= 154 && super.getMouseY() <= 185;
 	}
 
-	public void updateRs3MinimapHovers(int mouseX, int mouseY, int baseX, int baseY) {
-		int orbX = baseX - 27;
-		int orbXRight = baseX + 26;
-		int runXLeft = baseX - (Configuration.osbuddyGameframe ? 13 : 3);
-		int runXRight = baseX + (Configuration.osbuddyGameframe ? 41 : 51);
-		int counterLeft = baseX - 22;
-		int counterRight = baseX - 1;
-		int worldLeft = baseX + 149;
-		int worldRight = baseX + 178;
-		int teleLeft = baseX + 89;
-		int teleRight = baseX + 103;
-		int pouchLeft = baseX + 118;
-		int pouchRight = baseX + 183;
+	public void updateRs3MinimapHovers(int mouseX, int mouseY, int baseX, int baseY, int width, int height) {
+		if (width <= 0 || height <= 0) {
+			return;
+		}
+	}
+
+	public void updateRs3OrbHovers(int mouseX, int mouseY, int baseX, int baseY) {
+		int minimapBaseX = baseX + 34;
+		int orbX = minimapBaseX - 27;
+		int orbXRight = minimapBaseX + 26;
+		int runXLeft = minimapBaseX - (Configuration.osbuddyGameframe ? 13 : 3);
+		int runXRight = minimapBaseX + (Configuration.osbuddyGameframe ? 41 : 51);
+		int counterLeft = minimapBaseX - 22;
+		int counterRight = minimapBaseX - 1;
+		int worldLeft = minimapBaseX + 149;
+		int worldRight = minimapBaseX + 178;
+		int teleLeft = minimapBaseX + 89;
+		int teleRight = minimapBaseX + 103;
+		int pouchLeft = minimapBaseX + 118;
+		int pouchRight = minimapBaseX + 183;
 		int prayTop = baseY + (Configuration.osbuddyGameframe ? 90 : 55);
 		int prayBottom = baseY + (Configuration.osbuddyGameframe ? 119 : 104);
 		int runTop = baseY + (Configuration.osbuddyGameframe ? 123 : 132);
@@ -1462,6 +1534,16 @@ public class Client extends RSApplet {
 		wikiHover = mouseX >= worldLeft && mouseX <= worldRight && mouseY >= baseY + 160 && mouseY <= baseY + 173;
 		teleOrbHover = mouseX >= teleLeft && mouseX <= teleRight && mouseY >= teleTop && mouseY <= teleBottom;
 		pouchHover = mouseX >= pouchLeft && mouseX <= pouchRight && mouseY >= pouchTop && mouseY <= pouchBottom;
+	}
+
+	private void clearOrbHovers() {
+		prayHover = false;
+		runHover = false;
+		counterHover = false;
+		worldHover = false;
+		wikiHover = false;
+		teleOrbHover = false;
+		pouchHover = false;
 	}
 
 	private boolean prayHover, prayClicked;
@@ -2863,16 +2945,16 @@ public class Client extends RSApplet {
 	public void processChatModeClick() {
 		int baseY = currentScreenMode == ScreenMode.FIXED ? 338 : currentGameHeight - CHAT_AREA_HEIGHT;
 		processChatModeClick(super.getMouseX(), super.getMouseY(), super.getSaveClickX(), super.getSaveClickY(),
-				super.clickMode3 == 1, 0, baseY);
+				super.clickMode3 == 1, 0, baseY, CHAT_AREA_WIDTH, CHAT_AREA_HEIGHT);
 	}
 
-	public void processRs3ChatModeClick(int mouseX, int mouseY, int clickX, int clickY, boolean clicked, int baseX, int baseY) {
-		processChatModeClick(mouseX, mouseY, clickX, clickY, clicked, baseX, baseY);
+	public void processRs3ChatModeClick(int mouseX, int mouseY, int clickX, int clickY, boolean clicked, int baseX, int baseY, int width, int height) {
+		processChatModeClick(mouseX, mouseY, clickX, clickY, clicked, baseX, baseY, width, height);
 	}
 
-	private void processChatModeClick(int mouseX, int mouseY, int clickX, int clickY, boolean clicked, int baseX, int baseY) {
-		int tabTop = baseY + CHAT_AREA_HEIGHT - CHAT_TAB_HEIGHT;
-		int tabBottom = baseY + CHAT_AREA_HEIGHT;
+	private void processChatModeClick(int mouseX, int mouseY, int clickX, int clickY, boolean clicked, int baseX, int baseY, int width, int height) {
+		int tabTop = baseY + height - CHAT_TAB_HEIGHT;
+		int tabBottom = baseY + height;
 		if (mouseY >= tabTop && mouseY <= tabBottom) {
 			if (mouseX >= baseX + 5 && mouseX <= baseX + 61) {
 				channelButtonHoverPosition = 0;
@@ -3502,7 +3584,7 @@ public class Client extends RSApplet {
 	Sprite[] redStones = new Sprite[6];
 
 	private void drawTabs() {
-		if (currentScreenMode == ScreenMode.FIXED) {
+		if (!rs3MinimapOverride && currentScreenMode == ScreenMode.FIXED) {
 			final int[][] sideIconCoordinates = new int[][] { { 17, 17 }, { 49, 15 }, { 83, 15 }, { 113, 13 },
 					{ 146, 10 }, { 180, 11 }, { 214, 15 }, { 14, 311 }, { 49, 314 }, { 82, 314 }, { 116, 310 },
 					{ 148, 312 }, { 184, 311 }, { 216, 311 }, { 216, 311 } };
@@ -9996,7 +10078,10 @@ public class Client extends RSApplet {
 	private void processMinimapActions() {
 		final boolean fixed = currentScreenMode == ScreenMode.FIXED;
 		if (rs3MinimapOverride) {
-			processRs3MinimapActions(super.getMouseX(), super.getMouseY(), rs3MinimapBaseX, rs3MinimapBaseY);
+			processRs3MinimapActions(super.getMouseX(), super.getMouseY(), rs3MinimapBaseX, rs3MinimapBaseY, rs3MinimapWidth, rs3MinimapHeight);
+			return;
+		}
+		if (isRs3InterfaceStyle()) {
 			return;
 		}
 		if (fixed ? super.getMouseX() >= 542 && super.getMouseX() <= 579 && super.getMouseY() >= 2 && super.getMouseY() <= 38
@@ -10072,15 +10157,17 @@ public class Client extends RSApplet {
 		}
 	}
 
-	public void processRs3MinimapActions(int mouseX, int mouseY, int baseX, int baseY) {
-		int compassLeft = baseX + 3;
-		int compassRight = baseX + 44;
-		if (mouseX >= compassLeft && mouseX <= compassRight && mouseY >= baseY && mouseY <= baseY + 40) {
+	public void processRs3MinimapActions(int mouseX, int mouseY, int baseX, int baseY, int width, int height) {
+		Rectangle compassBounds = getRs3CompassBounds(baseX, baseY, width, height);
+		if (compassBounds != null && compassBounds.contains(mouseX, mouseY)) {
 			HoverMenuManager.reset();
 			menuActionName[1] = "Look North";
 			menuActionID[1] = 696;
 			menuActionRow = 2;
 		}
+	}
+
+	public void processRs3OrbActions(int mouseX, int mouseY, int baseX, int baseY) {
 		if (counterHover && drawOrbs) {
 			HoverMenuManager.reset();
 			menuActionName[1] = "Reset @or1@XP total";
@@ -10131,6 +10218,10 @@ public class Client extends RSApplet {
 			menuActionID[1] = 1506;
 			menuActionRow = 3;
 		}
+	}
+
+	public void processRs3OrbClick(int mouseX, int mouseY, int baseX, int baseY) {
+		processRs3OrbActions(mouseX, mouseY, baseX, baseY);
 	}
 
 	private int method83(int i, int j, int k) {
@@ -11711,7 +11802,7 @@ public class Client extends RSApplet {
 
 	public boolean mouseMapPosition() {
 		if (rs3MinimapOverride) {
-			return mouseMapPosition(super.getMouseX(), super.getMouseY(), rs3MinimapBaseX, rs3MinimapBaseY);
+			return mouseMapPosition(super.getMouseX(), super.getMouseY(), rs3MinimapBaseX, rs3MinimapBaseY, rs3MinimapWidth, rs3MinimapHeight);
 		}
 		if (super.getMouseX() >= currentGameWidth - 21 && super.getMouseX() <= currentGameWidth && super.getMouseY() >= 0
 				&& super.getMouseY() <= 21) {
@@ -11720,8 +11811,52 @@ public class Client extends RSApplet {
 		return true;
 	}
 
-	private boolean mouseMapPosition(int mouseX, int mouseY, int panelBaseX, int panelBaseY) {
-		return !(mouseX >= panelBaseX + 162 && mouseX <= panelBaseX + 183 && mouseY >= panelBaseY && mouseY <= panelBaseY + 21);
+	private boolean mouseMapPosition(int mouseX, int mouseY, int panelBaseX, int panelBaseY, int width, int height) {
+		Rectangle compassBounds = getRs3CompassBounds(panelBaseX, panelBaseY, width, height);
+		return compassBounds == null || !compassBounds.contains(mouseX, mouseY);
+	}
+
+	private Rectangle getRs3MinimapBounds(int baseX, int baseY, int width, int height) {
+		if (width <= 0 || height <= 0) {
+			return null;
+		}
+		int padding = 6;
+		int size = Math.max(120, Math.min(width, height) - padding * 2);
+		int x = baseX + (width - size) / 2;
+		int y = baseY + (height - size) / 2;
+		return new Rectangle(x, y, size, size);
+	}
+
+	private Rectangle getRs3CompassBounds(int baseX, int baseY, int width, int height) {
+		Rectangle minimapBounds = getRs3MinimapBounds(baseX, baseY, width, height);
+		if (minimapBounds == null) {
+			return null;
+		}
+		int compassSize = 36;
+		return new Rectangle(minimapBounds.x + 4, minimapBounds.y + 4, compassSize, compassSize);
+	}
+
+	private void ensureRs3MinimapMask(int size) {
+		if (rs3MinimapMaskSize == size && rs3MinimapMaskOffsets != null && rs3MinimapMaskWidths != null) {
+			return;
+		}
+		rs3MinimapMaskSize = size;
+		rs3MinimapMaskOffsets = new int[size];
+		rs3MinimapMaskWidths = new int[size];
+		for (int index = 0; index < size; index++) {
+			rs3MinimapMaskOffsets[index] = 0;
+			rs3MinimapMaskWidths[index] = size;
+		}
+	}
+
+	private void drawRs3Compass() {
+		if (rs3MinimapContentSize <= 0) {
+			return;
+		}
+		int compassX = rs3MinimapContentX + 6;
+		int compassY = rs3MinimapContentY + 6;
+		compassImage.method352(33, viewRotation, anIntArray1057, 256, anIntArray968,
+				compassY, compassX - 1, compassX + 1, 33, 25);
 	}
 
 	private void processMainScreenClick() {
@@ -12293,7 +12428,7 @@ public class Client extends RSApplet {
 
 		if (backDialogID == -1 && inputDialogState != 3 && !isRs3InterfaceStyle()) {
 			int baseY = currentScreenMode == ScreenMode.FIXED ? 338 : currentGameHeight - CHAT_AREA_HEIGHT;
-			updateChatScroll(getMouseX(), getMouseY(), 0, baseY);
+			updateChatScroll(getMouseX(), getMouseY(), 0, baseY, CHAT_AREA_WIDTH, CHAT_AREA_HEIGHT);
 		}
 		if (backDialogID != -1) {
 			boolean flag2 = method119(tickDelta, backDialogID);
@@ -12506,15 +12641,20 @@ public class Client extends RSApplet {
 	public void drawInterface(int scrollPosition, int xPosition, RSInterface rsInterface, int yPosition) {
 		drawInterface(scrollPosition, xPosition, rsInterface, yPosition, false);
 	}
-	public void processRs3MinimapClick(int mouseX, int mouseY, int panelBaseX, int panelBaseY) {
+	public void processRs3MinimapClick(int mouseX, int mouseY, int panelBaseX, int panelBaseY, int width, int height) {
 		if (minimapState != 0) {
 			return;
 		}
-		int i = mouseX - (panelBaseX + 24);
-		int j = mouseY - (panelBaseY + 8);
-		if (inCircle(0, 0, i, j, 76) && mouseMapPosition(mouseX, mouseY, panelBaseX, panelBaseY) && !runHover) {
-			i -= 73;
-			j -= 75;
+		Rectangle minimapBounds = getRs3MinimapBounds(panelBaseX, panelBaseY, width, height);
+		if (minimapBounds == null) {
+			return;
+		}
+		int radius = minimapBounds.width / 2;
+		int centerX = minimapBounds.x + radius;
+		int centerY = minimapBounds.y + radius;
+		int i = mouseX - centerX;
+		int j = mouseY - centerY;
+		if (inCircle(0, 0, i, j, radius) && mouseMapPosition(mouseX, mouseY, panelBaseX, panelBaseY, width, height) && !runHover) {
 			int k = viewRotation + minimapRotation & 0x7ff;
 			int i1 = Rasterizer.anIntArray1470[k];
 			int j1 = Rasterizer.anIntArray1471[k];
@@ -15072,25 +15212,40 @@ public class Client extends RSApplet {
 		int baseX = rs3MinimapOverride ? rs3MinimapBaseX : (currentScreenMode == ScreenMode.FIXED ? 0 : currentGameWidth - 183);
 		int baseY = rs3MinimapOverride ? rs3MinimapBaseY : 0;
 		boolean fixed = currentScreenMode == ScreenMode.FIXED && !rs3MinimapOverride;
+		Rectangle rs3MinimapBounds = null;
+		if (rs3MinimapOverride) {
+			rs3MinimapBounds = getRs3MinimapBounds(baseX, baseY, rs3MinimapWidth, rs3MinimapHeight);
+			if (rs3MinimapBounds != null) {
+				rs3MinimapContentX = rs3MinimapBounds.x;
+				rs3MinimapContentY = rs3MinimapBounds.y;
+				rs3MinimapContentSize = rs3MinimapBounds.width;
+				ensureRs3MinimapMask(rs3MinimapContentSize);
+			}
+		}
 		if (currentScreenMode == ScreenMode.FIXED)
 			mapAreaGraphicsBuffer.initDrawingArea();
 
 		/** Black minimap **/
 		if (minimapState == 2) {
-			if (currentScreenMode == ScreenMode.FIXED) {
-				mapArea[3].drawSprite(baseX, baseY + 4);
+			if (rs3MinimapOverride && rs3MinimapBounds != null) {
+				DrawingArea.drawPixels(rs3MinimapContentSize, rs3MinimapContentY, rs3MinimapContentX, 0x0d0d0d, rs3MinimapContentSize);
+				drawRs3Compass();
 			} else {
-				mapArea[2].drawSprite(baseX, baseY);
-				mapArea[4].drawSprite(baseX + 23, baseY + 8);
-			}
-			if(getUserSettings().isOldGameframe() && currentScreenMode == ScreenMode.FIXED ){
-				compassImage.method352(33, viewRotation, anIntArray1057, 256, anIntArray968,
-						(fixed ? 28 + baseY : 25 + baseY), 4 + baseX,
-						(fixed ? 27 + baseX : baseX + 5), 33, 25);
-			}else {
-				compassImage.method352(33, viewRotation, anIntArray1057, 256, anIntArray968,
-						(fixed ? 25 + baseY : 25 + baseY), 4 + baseX,
-						(fixed ? 29 + baseX : baseX + 5), 33, 25);
+				if (currentScreenMode == ScreenMode.FIXED) {
+					mapArea[3].drawSprite(baseX, baseY + 4);
+				} else {
+					mapArea[2].drawSprite(baseX, baseY);
+					mapArea[4].drawSprite(baseX + 23, baseY + 8);
+				}
+				if(getUserSettings().isOldGameframe() && currentScreenMode == ScreenMode.FIXED ){
+					compassImage.method352(33, viewRotation, anIntArray1057, 256, anIntArray968,
+							(fixed ? 28 + baseY : 25 + baseY), 4 + baseX,
+							(fixed ? 27 + baseX : baseX + 5), 33, 25);
+				}else {
+					compassImage.method352(33, viewRotation, anIntArray1057, 256, anIntArray968,
+							(fixed ? 25 + baseY : 25 + baseY), 4 + baseX,
+							(fixed ? 29 + baseX : baseX + 5), 33, 25);
+				}
 			}
 			// if (drawOrbs)
 			// loadAllOrbs(currentScreenMode == ScreenMode.FIXED ? 0 : currentGameWidth -
@@ -15109,11 +15264,20 @@ public class Client extends RSApplet {
 			int j = 48 + myPlayer.x / 32;
 			int l2 = 464 - myPlayer.y / 32;
 
-			int positionX = (fixed ? baseY + 9 : baseY + 7);
-			int positionY = (fixed ? baseX + 51 : baseX + 23);
+			if (rs3MinimapOverride && rs3MinimapBounds != null) {
+				DrawingArea.drawPixels(rs3MinimapContentSize, rs3MinimapContentY, rs3MinimapContentX, 0x0d0d0d, rs3MinimapContentSize);
+			}
 
-			minimapImage.method352(151, i, anIntArray1229, 256 + minimapZoom, anIntArray1052, l2, positionX, positionY, 151,
-					j);
+			if (rs3MinimapOverride && rs3MinimapBounds != null) {
+				int size = rs3MinimapContentSize;
+				minimapImage.method352(size, i, rs3MinimapMaskWidths, 256 + minimapZoom, rs3MinimapMaskOffsets, l2,
+						rs3MinimapContentY, rs3MinimapContentX, size, j);
+			} else {
+				int positionX = (fixed ? baseY + 9 : baseY + 7);
+				int positionY = (fixed ? baseX + 51 : baseX + 23);
+				minimapImage.method352(151, i, anIntArray1229, 256 + minimapZoom, anIntArray1052, l2, positionX, positionY, 151,
+						j);
+			}
 
 			for (int[] icon : getCustomMapIcons()) {
 				markMinimap(mapFunctions[icon[0]], ((icon[1] - baseX) * 4 + 2) - Client.myPlayer.x / 32, ((icon[2] - baseY) * 4 + 2) - Client.myPlayer.y / 32);
@@ -15250,11 +15414,14 @@ public class Client extends RSApplet {
 				int l4 = (destY * 4 + 2) - myPlayer.y / 32;
 				markMinimap(mapFlag, j2, l4);
 			}
-
-
-
-			DrawingArea.drawPixels(3, (fixed ? baseY + 83 : baseY + 81),
-					(fixed ? baseX + 125 : baseX + 98), 0xffffff, 3);
+			if (rs3MinimapOverride && rs3MinimapBounds != null) {
+				int centerX = rs3MinimapContentX + rs3MinimapContentSize / 2;
+				int centerY = rs3MinimapContentY + rs3MinimapContentSize / 2;
+				DrawingArea.drawPixels(3, centerY, centerX, 0xffffff, 3);
+			} else {
+				DrawingArea.drawPixels(3, (fixed ? baseY + 83 : baseY + 81),
+						(fixed ? baseX + 125 : baseX + 98), 0xffffff, 3);
+			}
 		}
 		Sprite wiki1 = new Sprite("/Interfaces/Wiki/2420");
 		Sprite wiki2 = new Sprite("/Interfaces/Wiki/2421");
@@ -15263,18 +15430,22 @@ public class Client extends RSApplet {
 		Sprite teleOrb2 = new Sprite("/Interfaces/teleorb/1436");
 
 
-		if (currentScreenMode == ScreenMode.FIXED) {
+		if (!rs3MinimapOverride) {
+			if (currentScreenMode == ScreenMode.FIXED) {
+				mapArea[0].drawSprite(baseX, baseY + 4);
+				mapArea[5].drawSprite(baseX, baseY);
+			} else {
+				mapArea[2].drawSprite(baseX, baseY);
+			}
 
-			mapArea[0].drawSprite(baseX, baseY + 4);
-			mapArea[5].drawSprite(baseX, baseY);
-		} else
-			mapArea[2].drawSprite(baseX, baseY);
-
-		compassImage.method352(33, viewRotation, anIntArray1057, 256, anIntArray968,
-				(fixed ? 25 + baseY : 25 + baseY), 4 + baseX,
-				(fixed ? 29 + baseX : baseX + 5), 33, 25);
-		if (drawOrbs)
-			loadAllOrbs(fixed ? baseX : baseX - 34);
+			compassImage.method352(33, viewRotation, anIntArray1057, 256, anIntArray968,
+					(fixed ? 25 + baseY : 25 + baseY), 4 + baseX,
+					(fixed ? 29 + baseX : baseX + 5), 33, 25);
+			if (drawOrbs)
+				loadAllOrbs(fixed ? baseX : baseX - 34);
+		} else {
+			drawRs3Compass();
+		}
 		if (currentScreenMode == ScreenMode.FIXED) {
 			cacheSprite2[6].drawSprite(baseX + 196, baseY + 106);//110
 			if (worldHover) {
@@ -15297,7 +15468,7 @@ public class Client extends RSApplet {
 				teleOrb1.drawSprite(baseX + 192, baseY + 25);
 
 			}
-		} else {
+		} else if (!rs3MinimapOverride) {
 
 
 			cacheSprite2[6].drawSprite(baseX + 148, baseY + 141);
@@ -15335,7 +15506,7 @@ public class Client extends RSApplet {
 				: currentScreenMode == ScreenMode.FIXED ? 0 : -5;
 		int xOff = Configuration.osbuddyGameframe ? currentScreenMode == ScreenMode.FIXED ? 0 : -6
 				: currentScreenMode == ScreenMode.FIXED ? 0 : -6;
-		int baseY = rs3MinimapOverride ? rs3MinimapBaseY : 0;
+		int baseY = getOrbBaseY();
 		String cHP = RSInterface.interfaceCache[4016].message;
 		String mHP = RSInterface.interfaceCache[4017].message;
 		int currentHP = Integer.parseInt(cHP);
@@ -15385,7 +15556,7 @@ public class Client extends RSApplet {
 		double percent = specialAttack  / (double) 100;
 		//int percent = 100;
 		boolean isFixed = currentScreenMode == ScreenMode.FIXED;
-		int baseY = rs3MinimapOverride ? rs3MinimapBaseY : 0;
+		int baseY = getOrbBaseY();
 		image.drawSprite((isFixed ? 37 : 37) + xOffset, baseY + (isFixed ? 134 : 139));
 		if(specialEnabled==1) {
 			//fill.drawSprite((isFixed ? 60 : 133) + xOffset, isFixed ? 134 : 151);
@@ -15407,7 +15578,7 @@ public class Client extends RSApplet {
 	Sprite moneyPouchCoins = new Sprite("/Interfaces/Wiki/963");
 	private void drawMoneyPouch() {
 
-		int baseY = rs3MinimapOverride ? rs3MinimapBaseY : 0;
+		int baseY = getOrbBaseY();
 		int minimapBaseX = rs3MinimapOverride ? rs3MinimapBaseX : (currentScreenMode == ScreenMode.FIXED ? 0 : currentGameWidth - 183);
 		if (pouchHover) {
 			DrawingArea.fillCircle((currentScreenMode == ScreenMode.FIXED ? 179 : minimapBaseX + 134), baseY + (currentScreenMode == ScreenMode.FIXED ? 142 : 168), 15, 0x6E6D6D);
@@ -15432,7 +15603,7 @@ public class Client extends RSApplet {
 				: currentScreenMode == ScreenMode.FIXED ? 0 : -5;
 		int xOff = Configuration.osbuddyGameframe ? currentScreenMode == ScreenMode.FIXED ? -1 : -7
 				: currentScreenMode == ScreenMode.FIXED ? -1 : -7;
-		int baseY = rs3MinimapOverride ? rs3MinimapBaseY : 0;
+		int baseY = getOrbBaseY();
 		Sprite bg = cacheSprite1[prayHover ? 8 : 7];
 		Sprite fg = prayClicked ? new Sprite("Gameframe/newprayclicked") : cacheSprite1[1];
 		bg.drawSprite(0 + xOffset - xOff, baseY + 75 - yOff);
@@ -15462,7 +15633,7 @@ public class Client extends RSApplet {
 				: currentScreenMode == ScreenMode.FIXED ? 1 : -4;
 		int xMinus = Configuration.osbuddyGameframe ? currentScreenMode == ScreenMode.FIXED ? 11 : 5
 				: currentScreenMode == ScreenMode.FIXED ? -1 : -6;
-		int baseY = rs3MinimapOverride ? rs3MinimapBaseY : 0;
+		int baseY = getOrbBaseY();
 		Sprite bg = cacheSprite1[runHover ? 8 : 7];
 		boolean running = anIntArray1045[173] == 1;
 		Sprite fg = cacheSprite1[running ? 4 : 3];
@@ -15484,7 +15655,7 @@ public class Client extends RSApplet {
 	private Sprite venomOrb;
 	private boolean pouchHover;
 	private void loadAllOrbs(int xOffset) {
-		int baseY = rs3MinimapOverride ? rs3MinimapBaseY : 0;
+		int baseY = getOrbBaseY();
 		int orbX = currentScreenMode == ScreenMode.FIXED ? xOffset : xOffset + 6;
 		try {
 			loadHpOrb(xOffset);
@@ -15525,6 +15696,39 @@ public class Client extends RSApplet {
 		}
 
 		DrawingArea.drawAlphaBox(0, 0, 1, 200, 0x332B16, 250);
+	}
+
+	private void drawOrbs() {
+		if (!drawOrbs) {
+			return;
+		}
+		int xOffset = rs3OrbsOverride ? rs3OrbsBaseX : (currentScreenMode == ScreenMode.FIXED ? 0 : currentGameWidth - 217);
+		loadAllOrbs(xOffset);
+		if (rs3OrbsOverride) {
+			int minimapBaseX = xOffset + 34;
+			int baseY = getOrbBaseY();
+			cacheSprite2[6].drawSprite(minimapBaseX + 148, baseY + 141);
+			if (worldHover) {
+				cacheSprite2[1].drawSprite(minimapBaseX + 152, baseY + 145);
+			} else {
+				cacheSprite2[0].drawSprite(minimapBaseX + 152, baseY + 145);
+			}
+			if (teleOrbHover) {
+				new Sprite("/Interfaces/teleorb/1436").drawSprite(minimapBaseX + 83, baseY + 150);
+			} else {
+				new Sprite("/Interfaces/teleorb/1435").drawSprite(minimapBaseX + 83, baseY + 150);
+			}
+		}
+	}
+
+	private int getOrbBaseY() {
+		if (rs3OrbsOverride) {
+			return rs3OrbsBaseY;
+		}
+		if (rs3MinimapOverride) {
+			return rs3MinimapBaseY;
+		}
+		return 0;
 	}
 
 
@@ -16971,11 +17175,16 @@ public class Client extends RSApplet {
 		int l1 = yPosition * j1 - xPosition * i1 >> 16;
 
 		try {
-			if (currentScreenMode == ScreenMode.FIXED)
+			if (rs3MinimapOverride && rs3MinimapContentSize > 0) {
+				int centerX = rs3MinimapContentX + rs3MinimapContentSize / 2;
+				int centerY = rs3MinimapContentY + rs3MinimapContentSize / 2;
+				sprite.drawSprite(centerX + k1 - sprite.maxWidth / 2, centerY - l1 - sprite.maxHeight / 2);
+			} else if (currentScreenMode == ScreenMode.FIXED) {
 				sprite.drawSprite(((97 + k1) - sprite.maxWidth / 2) + 30, 83 - l1 - sprite.maxHeight / 2 - 4 + 5);
-			else
+			} else {
 				sprite.drawSprite(((77 + k1) - sprite.maxWidth / 2) + 4 + (currentGameWidth - 167),
 						85 - l1 - sprite.maxHeight / 2 - 4);
+			}
 		} catch (Exception e) {
 			// e.printStackTrace();
 		}
