@@ -2,6 +2,8 @@ package com.client;
 
 import com.client.features.gameframe.ScreenMode;
 import com.client.sign.Signlink;
+import com.client.ui.shell.VyknaShell;
+
 import javax.imageio.ImageIO;
 import javax.swing.*;
 import java.awt.*;
@@ -42,9 +44,9 @@ public class ClientWindow extends Client implements ActionListener, WindowListen
 		try {
 			UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
 			JPopupMenu.setDefaultLightWeightPopupEnabled(false);
-			frame = new JFrame(Configuration.clientTitle);
-			frame.setLayout(new BorderLayout());
-			frame.add((Component) this, BorderLayout.CENTER);
+			// Wrap the game canvas in a custom RuneLite-style shell
+			frame = new VyknaShell(Configuration.clientTitle, this);
+	//		frame.setLayout(new BorderLayout());
 			setFocusTraversalKeysEnabled(false);
 			frame.setResizable(false);
 			try {
@@ -59,7 +61,7 @@ public class ClientWindow extends Client implements ActionListener, WindowListen
 				System.err.println("Cannot get icon image from url.");
 			}
 			frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-			frame.setPreferredSize(ScreenMode.FIXED.getDimensions());
+			// (The shell will mount the game canvas itself)
 			frame.pack();
 			insets = frame.getInsets();
 			frame.setLocationRelativeTo(null);
