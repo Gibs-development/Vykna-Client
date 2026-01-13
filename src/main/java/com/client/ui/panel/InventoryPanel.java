@@ -109,7 +109,7 @@ public class InventoryPanel extends PanelManager.TabPanel {
 		}
 	}
 
-	static void resetInventoryContainer() {
+	public static void resetInventoryContainer() {
 		RSInterface container = RSInterface.interfaceCache[INVENTORY_CONTAINER_ID];
 		if (container == null) {
 			return;
@@ -128,7 +128,7 @@ public class InventoryPanel extends PanelManager.TabPanel {
 		}
 	}
 
-	void resetCachedLayout() {
+	public void resetCachedLayout() {
 		cachedColumns = 4;
 		cachedRows = 7;
 	}

@@ -802,77 +802,82 @@ public class Client extends RSApplet {
 	private void drawChannelButtons(int xOffset, int yOffset) {
 		String text[] = { "On", "Friends", "Off", "Hide" };
 		int textColor[] = { 65280, 0xffff00, 0xff0000, 65535 };
+		int chatAreaHeight = getChatAreaHeight();
+		int buttonBaseY = yOffset + chatAreaHeight - 23;
+		int buttonLabelY = buttonBaseY + 10;
+		int buttonTimeY = buttonBaseY + 15;
+		int buttonStatusY = buttonBaseY + 21;
 
 		if (hideChatArea) {
-			channelButtons.drawSprite(xOffset, yOffset + getChatAreaHeight() - 23);
+			channelButtons.drawSprite(xOffset, buttonBaseY);
 		}
 
 		switch (channelButtonClickPosition) {
 			case 0:
-				chatButtons[1].drawSprite(xOffset + 5, 142 + yOffset);
+				chatButtons[1].drawSprite(xOffset + 5, buttonBaseY);
 				break;
 			case 1:
-				chatButtons[1].drawSprite(xOffset + 71, 142 + yOffset);
+				chatButtons[1].drawSprite(xOffset + 71, buttonBaseY);
 				break;
 			case 2:
-				chatButtons[1].drawSprite(xOffset + 137, 142 + yOffset);
+				chatButtons[1].drawSprite(xOffset + 137, buttonBaseY);
 				break;
 			case 3:
-				chatButtons[1].drawSprite(xOffset + 203, 142 + yOffset);
+				chatButtons[1].drawSprite(xOffset + 203, buttonBaseY);
 				break;
 			case 4:
-				chatButtons[1].drawSprite(xOffset + 269, 142 + yOffset);
+				chatButtons[1].drawSprite(xOffset + 269, buttonBaseY);
 				break;
 			case 5:
-				chatButtons[1].drawSprite(xOffset + 335, 142 + yOffset);
+				chatButtons[1].drawSprite(xOffset + 335, buttonBaseY);
 				break;
 		}
 		if (channelButtonHoverPosition == channelButtonClickPosition) {
 			switch (channelButtonHoverPosition) {
 				case 0:
-					chatButtons[2].drawSprite(xOffset + 5, 142 + yOffset);
+					chatButtons[2].drawSprite(xOffset + 5, buttonBaseY);
 					break;
 				case 1:
-					chatButtons[2].drawSprite(xOffset + 71, 142 + yOffset);
+					chatButtons[2].drawSprite(xOffset + 71, buttonBaseY);
 					break;
 				case 2:
-					chatButtons[2].drawSprite(xOffset + 137, 142 + yOffset);
+					chatButtons[2].drawSprite(xOffset + 137, buttonBaseY);
 					break;
 				case 3:
-					chatButtons[2].drawSprite(xOffset + 203, 142 + yOffset);
+					chatButtons[2].drawSprite(xOffset + 203, buttonBaseY);
 					break;
 				case 4:
-					chatButtons[2].drawSprite(xOffset + 269, 142 + yOffset);
+					chatButtons[2].drawSprite(xOffset + 269, buttonBaseY);
 					break;
 				case 5:
-					chatButtons[2].drawSprite(xOffset + 335, 142 + yOffset);
+					chatButtons[2].drawSprite(xOffset + 335, buttonBaseY);
 					break;
 				case 6:
-					chatButtons[3].drawSprite(xOffset + 404, 142 + yOffset);
+					chatButtons[3].drawSprite(xOffset + 404, buttonBaseY);
 					break;
 			}
 		} else {
 			switch (channelButtonHoverPosition) {
 				case 0:
-					chatButtons[0].drawSprite(xOffset + 5, 142 + yOffset);
+					chatButtons[0].drawSprite(xOffset + 5, buttonBaseY);
 					break;
 				case 1:
-					chatButtons[0].drawSprite(xOffset + 71, 142 + yOffset);
+					chatButtons[0].drawSprite(xOffset + 71, buttonBaseY);
 					break;
 				case 2:
-					chatButtons[0].drawSprite(xOffset + 137, 142 + yOffset);
+					chatButtons[0].drawSprite(xOffset + 137, buttonBaseY);
 					break;
 				case 3:
-					chatButtons[0].drawSprite(xOffset + 203, 142 + yOffset);
+					chatButtons[0].drawSprite(xOffset + 203, buttonBaseY);
 					break;
 				case 4:
-					chatButtons[0].drawSprite(xOffset + 269, 142 + yOffset);
+					chatButtons[0].drawSprite(xOffset + 269, buttonBaseY);
 					break;
 				case 5:
-					chatButtons[0].drawSprite(xOffset + 335, 142 + yOffset);
+					chatButtons[0].drawSprite(xOffset + 335, buttonBaseY);
 					break;
 				case 6:
-					chatButtons[3].drawSprite(xOffset + 404, 142 + yOffset);
+					chatButtons[3].drawSprite(xOffset + 404, buttonBaseY);
 					break;
 			}
 		}
@@ -887,20 +892,20 @@ public class Client extends RSApplet {
 		/**
 		 * Updates button per tick.
 		 */
-		newSmallFont.drawCenteredString(""+dateFormat.format(new Date().getTime()), xOffset + 459, 157 + yOffset, 0xffffff, 0);
+		newSmallFont.drawCenteredString(""+dateFormat.format(new Date().getTime()), xOffset + 459, buttonTimeY, 0xffffff, 0);
 
 
-		smallText.method389(true, xOffset + 26, 0xffffff, "All", 157 + yOffset);
-		smallText.method389(true, xOffset + 86, 0xffffff, "Game", 152 + yOffset);
-		smallText.method389(true, xOffset + 150, 0xffffff, "Public", 152 + yOffset);
-		smallText.method389(true, xOffset + 212, 0xffffff, "Private", 152 + yOffset);
-		smallText.method389(true, xOffset + 286, 0xffffff, "Clan", 152 + yOffset);
-		smallText.method389(true, xOffset + 349, 0xffffff, "Trade", 152 + yOffset);
-		smallText.method382(textColor[gameMode], xOffset + 98, text[gameMode], 163 + yOffset, true);
-		smallText.method382(textColor[publicChatMode], xOffset + 164, text[publicChatMode], 163 + yOffset, true);
-		smallText.method382(textColor[privateChatMode], xOffset + 230, text[privateChatMode], 163 + yOffset, true);
-		smallText.method382(textColor[clanChatMode], xOffset + 296, text[clanChatMode], 163 + yOffset, true);
-		smallText.method382(textColor[tradeMode], xOffset + 362, text[tradeMode], 163 + yOffset, true);
+		smallText.method389(true, xOffset + 26, 0xffffff, "All", buttonTimeY);
+		smallText.method389(true, xOffset + 86, 0xffffff, "Game", buttonLabelY);
+		smallText.method389(true, xOffset + 150, 0xffffff, "Public", buttonLabelY);
+		smallText.method389(true, xOffset + 212, 0xffffff, "Private", buttonLabelY);
+		smallText.method389(true, xOffset + 286, 0xffffff, "Clan", buttonLabelY);
+		smallText.method389(true, xOffset + 349, 0xffffff, "Trade", buttonLabelY);
+		smallText.method382(textColor[gameMode], xOffset + 98, text[gameMode], buttonStatusY, true);
+		smallText.method382(textColor[publicChatMode], xOffset + 164, text[publicChatMode], buttonStatusY, true);
+		smallText.method382(textColor[privateChatMode], xOffset + 230, text[privateChatMode], buttonStatusY, true);
+		smallText.method382(textColor[clanChatMode], xOffset + 296, text[clanChatMode], buttonStatusY, true);
+		smallText.method382(textColor[tradeMode], xOffset + 362, text[tradeMode], buttonStatusY, true);
 	}
 
 	ItemSearch grandExchangeItemSearch = null;
@@ -1369,7 +1374,7 @@ public class Client extends RSApplet {
 		if (isRs3InterfaceStyle() && !menuOpen) {
 			panelManager.ensureRs3Layout(this);
 			if (panelManager.isMouseOverPanel(super.getSaveClickX(), super.getSaveClickY())) {
-				return true;
+				return false;
 			}
 		}
 		int j = super.clickMode3;

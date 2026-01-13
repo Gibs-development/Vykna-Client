@@ -97,11 +97,13 @@ public final class VyknaShell extends JFrame {
 
         TitleBar titleBar = new TitleBar(title, this);
         root.add(titleBar, BorderLayout.NORTH);
+        installResizeHandler(root, titleBar);
 
         JPanel center = new JPanel(new BorderLayout());
         center.setOpaque(true);
         center.setBackground(BG);
         root.add(center, BorderLayout.CENTER);
+        installResizeHandler(root, center);
 
         // Game
         gameWrap.setOpaque(true);
@@ -111,6 +113,7 @@ public final class VyknaShell extends JFrame {
         Dimension fixed = ScreenMode.FIXED.getDimensions();
         gameWrap.setPreferredSize(fixed);
         gameWrap.setMinimumSize(fixed);
+        installResizeHandler(root, gameWrap);
 
         gameWrap.addMouseListener(new MouseAdapter() {
             @Override public void mousePressed(MouseEvent e) {
@@ -127,6 +130,7 @@ public final class VyknaShell extends JFrame {
         sidebar.setBorder(BorderFactory.createMatteBorder(0, 1, 0, 0, BORDER));
         sidebar.setLayout(new BorderLayout());
         center.add(sidebar, BorderLayout.EAST);
+        installResizeHandler(root, sidebar);
 
         // Icon strip
         iconStrip.setOpaque(true);
@@ -135,6 +139,7 @@ public final class VyknaShell extends JFrame {
         iconStrip.setLayout(new BoxLayout(iconStrip, BoxLayout.Y_AXIS));
         iconStrip.setPreferredSize(new Dimension(ICON_STRIP_WIDTH, 10));
         sidebar.add(iconStrip, BorderLayout.WEST);
+        installResizeHandler(root, iconStrip);
 
         ButtonGroup group = new ButtonGroup();
 
@@ -345,6 +350,10 @@ public final class VyknaShell extends JFrame {
     }
 
     private void installResizeHandler(JComponent root) {
+        installResizeHandler(root, root);
+    }
+
+    private void installResizeHandler(JComponent root, JComponent target) {
         MouseAdapter adapter = new MouseAdapter() {
             @Override
             public void mouseMoved(MouseEvent e) {
@@ -352,7 +361,8 @@ public final class VyknaShell extends JFrame {
                     setCursor(Cursor.getDefaultCursor());
                     return;
                 }
-                resizeDirection = getResizeDirection(e.getPoint(), root);
+                Point rootPoint = SwingUtilities.convertPoint(e.getComponent(), e.getPoint(), root);
+                resizeDirection = getResizeDirection(rootPoint, root);
                 setCursor(cursorForDirection(resizeDirection));
             }
 
@@ -364,7 +374,8 @@ public final class VyknaShell extends JFrame {
                 if (maximized) {
                     return;
                 }
-                resizeDirection = getResizeDirection(e.getPoint(), root);
+                Point rootPoint = SwingUtilities.convertPoint(e.getComponent(), e.getPoint(), root);
+                resizeDirection = getResizeDirection(rootPoint, root);
                 if (resizeDirection != ResizeDirection.NONE) {
                     resizingWindow = true;
                     resizeStart = e.getLocationOnScreen();
@@ -413,8 +424,8 @@ public final class VyknaShell extends JFrame {
                 revalidate();
             }
         };
-        root.addMouseListener(adapter);
-        root.addMouseMotionListener(adapter);
+        target.addMouseListener(adapter);
+        target.addMouseMotionListener(adapter);
     }
 
     private boolean isInResizeZone(Point point, JComponent root) {
