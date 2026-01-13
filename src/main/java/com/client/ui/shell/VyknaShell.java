@@ -1,7 +1,15 @@
 package com.client.ui.shell;
 
 import com.client.Client;
+import com.client.Rasterizer;
 import com.client.features.gameframe.ScreenMode;
+import com.client.features.settings.Preferences;
+import com.client.graphics.interfaces.settings.Setting;
+import com.client.graphics.interfaces.settings.SettingsInterface;
+import com.client.graphics.interfaces.dropdown.StretchedModeMenu;
+import com.client.graphics.interfaces.impl.QuestTab;
+import com.client.utilities.settings.Settings;
+import com.client.utilities.settings.SettingsManager;
 
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
@@ -11,6 +19,7 @@ import java.awt.*;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.net.URI;
+import java.util.List;
 
 public final class VyknaShell extends JFrame {
 
@@ -22,6 +31,7 @@ public final class VyknaShell extends JFrame {
     private final JPanel cards = new JPanel(cardLayout);
     private CardViewport cardViewport;
     private JScrollPane scroll;
+    private final JPanel gameWrap = new JPanel(new BorderLayout());
     // Theme
     static final Color BG = new Color(14, 15, 16);
     static final Color PANEL = new Color(20, 21, 23);
@@ -48,6 +58,9 @@ public final class VyknaShell extends JFrame {
     private IconTabButton utilBtn;
     private IconTabButton marketBtn;
     private IconTabButton linksBtn;
+    private final IconTabButton settingsBtn;
+    private final IconTabButton characterBtn;
+    private final CharacterInfoPanel characterPanel;
 
     // Need these to fix the “cut off” issue
 
@@ -73,13 +86,13 @@ public final class VyknaShell extends JFrame {
         root.add(center, BorderLayout.CENTER);
 
         // Game
-        JPanel gameWrap = new JPanel(new BorderLayout());
         gameWrap.setOpaque(true);
         gameWrap.setBackground(Color.BLACK);
         gameWrap.add((Component) client, BorderLayout.CENTER);
 
         Dimension fixed = ScreenMode.FIXED.getDimensions();
         gameWrap.setPreferredSize(fixed);
+        gameWrap.setMinimumSize(fixed);
 
         gameWrap.addMouseListener(new MouseAdapter() {
             @Override public void mousePressed(MouseEvent e) {
@@ -108,8 +121,8 @@ public final class VyknaShell extends JFrame {
         ButtonGroup group = new ButtonGroup();
 
         // Tabs in your requested order
-        final IconTabButton settingsBtn  = new IconTabButton("Settings", IconTabButton.IconType.SETTINGS);
-        final IconTabButton characterBtn = new IconTabButton("Character Information", IconTabButton.IconType.CHARACTER);
+        settingsBtn  = new IconTabButton("Settings", IconTabButton.IconType.SETTINGS);
+        characterBtn = new IconTabButton("Character Information", IconTabButton.IconType.CHARACTER);
         final IconTabButton marketBtn    = new IconTabButton("Market", IconTabButton.IconType.MARKET);
         final IconTabButton linksBtn     = new IconTabButton("Links", IconTabButton.IconType.LINKS);
         final IconTabButton newsBtn      = new IconTabButton("News", IconTabButton.IconType.NEWS);
@@ -147,12 +160,12 @@ public final class VyknaShell extends JFrame {
         JPanel contentWrap = new JPanel(new BorderLayout());
         contentWrap.setOpaque(true);
         contentWrap.setBackground(BG);
-        contentWrap.setBorder(new EmptyBorder(8, 10, 8, 10));
+        contentWrap.setBorder(new EmptyBorder(0, 0, 0, 0));
         sidebar.add(contentWrap, BorderLayout.CENTER);
 
         // Panels (placeholders for now - replace with real ones later)
         JPanel settingsPanel  = new SettingsPanel();
-        JPanel characterPanel = new CharacterInfoPanel();
+        characterPanel = new CharacterInfoPanel();
         JPanel marketPanel    = new ComingSoonPanel("Market", "Coming soon...");
         JPanel linksPanel     = new LinksQuickPanel();
         JPanel newsPanel      = new NewsPanel();
@@ -180,7 +193,8 @@ public final class VyknaShell extends JFrame {
         scroll.setVerticalScrollBarPolicy(ScrollPaneConstants.VERTICAL_SCROLLBAR_ALWAYS);
 
         // Keep content away from scrollbar
-        scroll.setViewportBorder(new EmptyBorder(0, 0, 0, 10));
+        scroll.setViewportBorder(new EmptyBorder(0, 0, 0, 0));
+        scroll.getViewport().setBackground(BG);
 
         JScrollBar vbar = scroll.getVerticalScrollBar();
         vbar.setUnitIncrement(16);
@@ -251,6 +265,9 @@ public final class VyknaShell extends JFrame {
     private void show(String key, IconTabButton btn) {
         cardLayout.show(cards, key);
         setActive(btn);
+        if ("character".equals(key)) {
+            characterPanel.refresh();
+        }
 
         // ✅ ensure scroll + viewport recompute sizes for active card
         cardViewport.sync();
@@ -270,6 +287,22 @@ public final class VyknaShell extends JFrame {
             }
         }
         iconStrip.repaint();
+    }
+
+    public void showSettingsTab() {
+        show("settings", settingsBtn);
+    }
+
+    public void updateGameSize(Dimension size) {
+        if (size == null) {
+            return;
+        }
+        Dimension applied = new Dimension(size);
+        gameWrap.setPreferredSize(applied);
+        gameWrap.setMinimumSize(applied);
+        gameWrap.revalidate();
+        gameWrap.repaint();
+        pack();
     }
 
 
@@ -328,8 +361,8 @@ public final class VyknaShell extends JFrame {
         } else if (c instanceof JScrollPane) {
             JScrollPane sp = (JScrollPane) c;
             sp.setBorder(BorderFactory.createLineBorder(BORDER));
-            sp.getViewport().setBackground(PANEL);
-            sp.setBackground(PANEL);
+            sp.getViewport().setBackground(BG);
+            sp.setBackground(BG);
         } else if (c instanceof JPanel) {
             JPanel p = (JPanel) c;
             if (p.getBackground() == null) p.setBackground(BG);
@@ -338,12 +371,23 @@ public final class VyknaShell extends JFrame {
             pb.setBackground(PANEL);
             pb.setForeground(ACCENT);
             pb.setBorder(BorderFactory.createLineBorder(BORDER));
+        } else if (c instanceof JSlider) {
+            JSlider slider = (JSlider) c;
+            slider.setBackground(BG);
+            slider.setForeground(TEXT);
         } else if (c instanceof JComboBox) {
             @SuppressWarnings("rawtypes")
             JComboBox cb = (JComboBox) c;
             cb.setBackground(PANEL);
             cb.setForeground(TEXT);
             cb.setBorder(BorderFactory.createLineBorder(BORDER));
+        } else if (c instanceof JList) {
+            @SuppressWarnings("rawtypes")
+            JList list = (JList) c;
+            list.setBackground(PANEL);
+            list.setForeground(TEXT);
+            list.setSelectionBackground(new Color(32, 34, 36));
+            list.setSelectionForeground(TEXT);
         }
 
         if (c instanceof Container) {
@@ -621,68 +665,80 @@ public final class VyknaShell extends JFrame {
         p.setOpaque(true);
         p.setBackground(BG);
         p.setLayout(new BoxLayout(p, BoxLayout.Y_AXIS));
+        p.setBorder(new EmptyBorder(10, 10, 12, 10));
         return p;
     }
 
     private static final class SettingsPanel extends JPanel {
-
-        private final JToggleButton openSidebarToggle;
-        private final JToggleButton animSmoothToggle;
-        private final JToggleButton particleToggle;
-        private final JToggleButton hdTexToggle;
+        private final JPanel body;
 
         SettingsPanel() {
             super(new BorderLayout());
             setOpaque(true);
             setBackground(BG);
 
-            JPanel body = cardRoot();
-            body.setBorder(new EmptyBorder(6, 2, 10, 2));
+            Settings settings = Client.getUserSettings();
+            if (settings == null) {
+                settings = Settings.getDefault();
+                Client.setUserSettings(settings);
+            }
 
+            body = cardRoot();
             body.add(new SectionTitle("Settings"));
 
-            // ---- Top toggle: Open sidebar on launch ----
-            openSidebarToggle = pillToggle("Open sidebar on launch", true);
-            body.add(row("Open sidebar on launch", openSidebarToggle));
-            body.add(divider());
-
-            // ---- Graphics/Client toggles ----
-            animSmoothToggle = pillToggle("Animation smoothing", true);
-            particleToggle = pillToggle("Particle quality", true);
-            hdTexToggle = pillToggle("HD textures (future)", false);
-
-            body.add(row("Animation smoothing", animSmoothToggle));
-            body.add(row("Particle quality", particleToggle));
-            body.add(row("HD textures (future)", hdTexToggle));
-
-            body.add(Box.createVerticalStrut(12));
-
-            // ---- Fill whitespace with useful cards ----
-            body.add(infoCard("Performance", new String[] {
-                    "FPS: Live",
-                    "Renderer: Auto",
-                    "Particles: High"
+            body.add(sectionHeader("Graphics"));
+            addSettingToggle(SettingsInterface.ANTI_ALIASING, isTrue(settings.isAntiAliasing()));
+            addSettingToggle(SettingsInterface.FOG, isTrue(settings.isFog()));
+            addSettingToggle(SettingsInterface.SMOOTH_SHADING, isTrue(settings.isSmoothShading()));
+            addSettingToggle(SettingsInterface.TILE_BLENDING, isTrue(settings.isTileBlending()));
+            addSettingToggle(SettingsInterface.STATUS_BARS, isTrue(isStatusBarsEnabled()));
+            addSettingDropdown(SettingsInterface.DRAW_DISTANCE, drawDistanceIndex(settings.getDrawDistance()));
+            addSettingDropdown(SettingsInterface.STRETCHED_MODE, booleanToIndex(settings.isStretchedMode()));
+            body.add(sliderRow("Brightness", Preferences.getPreferences().brightness * 100.0, 60, 100, value -> {
+                Preferences.getPreferences().brightness = value / 100.0;
+                Rasterizer.setBrightness(Preferences.getPreferences().brightness);
+                Preferences.save();
             }));
 
-            body.add(Box.createVerticalStrut(10));
-
-            body.add(infoCard("Client", new String[] {
-                    "Build: " + getClientBuildString(),
-                    "Mode: " + getModeString(),
-                    "Cache: OK"
+            body.add(sectionHeader("Audio"));
+            body.add(sliderRow("Music volume", Preferences.getPreferences().musicVolume, 0, 10, value -> {
+                Preferences.getPreferences().musicVolume = value;
+                Preferences.save();
+            }));
+            body.add(sliderRow("Sound effects volume", Preferences.getPreferences().soundVolume, 0, 10, value -> {
+                Preferences.getPreferences().soundVolume = value;
+                Preferences.save();
+            }));
+            body.add(sliderRow("Area sound volume", Preferences.getPreferences().areaSoundVolume, 0, 10, value -> {
+                Preferences.getPreferences().areaSoundVolume = value;
+                Preferences.save();
             }));
 
-            body.add(Box.createVerticalStrut(10));
+            body.add(sectionHeader("Interface"));
+            addSettingToggle(SettingsInterface.OLD_GAMEFRAME, isTrue(settings.isOldGameframe()));
+            addSettingDropdown(SettingsInterface.INVENTORY_MENU, inventoryMenuIndex());
+            addSettingDropdown(SettingsInterface.CHAT_EFFECT, settings.getChatColor());
+            addSettingToggle(SettingsInterface.GROUND_ITEM_NAMES, isTrue(settings.isGroundItemOverlay()));
+            addSettingToggle(SettingsInterface.MENU_HOVERS, isTrue(isMenuHoversEnabled()));
+            addSettingToggle(SettingsInterface.PLAYER_PROFILE, false);
+            addSettingToggle(SettingsInterface.GAME_TIMERS, isTrue(settings.isGameTimers()));
+            addSettingDropdown(SettingsInterface.PM_NOTIFICATION, booleanToIndex(Preferences.getPreferences().pmNotifications));
 
-            body.add(actionsCard());
+            body.add(sectionHeader("Gameplay"));
+            addSettingToggle(SettingsInterface.BOUNTY_HUNTER, isTrue(settings.isBountyHunter()));
+            addSettingToggle(SettingsInterface.ENTITY_TARGET, isTrue(settings.isShowEntityTarget()));
+            addSettingDropdown(SettingsInterface.DRAG, dragTimeIndex());
 
-            // Keep content top-aligned; allow scroll to handle overflow
-            add(body, BorderLayout.NORTH);
+            body.add(sectionHeader("Misc"));
+            addSettingToggle(SettingsInterface.ROOF, isTrue(!isRemoveRoofsEnabled()));
+            addSettingToggle(SettingsInterface.PVP_TAB, false);
+
+            add(body, BorderLayout.CENTER);
         }
 
         // ---------------- UI pieces ----------------
 
-        private JPanel row(String label, JToggleButton toggle) {
+        private JPanel row(String label, JComponent control) {
             JPanel row = new JPanel(new BorderLayout());
             row.setOpaque(true);
             row.setBackground(BG);
@@ -693,11 +749,72 @@ public final class VyknaShell extends JFrame {
             l.setFont(l.getFont().deriveFont(12f));
 
             row.add(l, BorderLayout.WEST);
-            row.add(toggle, BorderLayout.EAST);
+            row.add(control, BorderLayout.EAST);
             return row;
         }
 
-        private JToggleButton pillToggle(String name, boolean def) {
+        private JPanel sectionHeader(String title) {
+            JPanel p = new JPanel(new BorderLayout());
+            p.setOpaque(true);
+            p.setBackground(BG);
+            p.setBorder(new EmptyBorder(10, 0, 4, 0));
+            JLabel label = new JLabel(title);
+            label.setForeground(TEXT_DIM);
+            label.setFont(label.getFont().deriveFont(Font.BOLD, 12f));
+            p.add(label, BorderLayout.WEST);
+            return p;
+        }
+
+        private void addSettingToggle(Setting setting, boolean initial) {
+            JToggleButton toggle = pillToggle(initial);
+            toggle.addActionListener(e -> {
+                int option = toggle.isSelected() ? 0 : 1;
+                setting.getMenuItem().select(option, null);
+                persistSettings();
+                syncToggleVisual(toggle);
+            });
+            body.add(row(setting.getSettingName(), toggle));
+        }
+
+        private void addSettingDropdown(Setting setting, int selectedIndex) {
+            JComboBox<String> combo = new JComboBox<>(setting.getOptions());
+            combo.setSelectedIndex(Math.max(0, Math.min(selectedIndex, setting.getOptions().length - 1)));
+            combo.addActionListener(e -> {
+                int index = combo.getSelectedIndex();
+                setting.getMenuItem().select(index, null);
+                if (setting == SettingsInterface.STRETCHED_MODE) {
+                    StretchedModeMenu.updateStretchedMode(index == 0);
+                }
+                persistSettings();
+            });
+            body.add(row(setting.getSettingName(), combo));
+        }
+
+        private JPanel sliderRow(String label, double initialValue, int min, int max, SliderValueConsumer onChange) {
+            JPanel row = new JPanel(new BorderLayout());
+            row.setOpaque(true);
+            row.setBackground(BG);
+            row.setBorder(new EmptyBorder(8, 2, 8, 2));
+
+            JLabel l = new JLabel(label);
+            l.setForeground(TEXT);
+            l.setFont(l.getFont().deriveFont(12f));
+            row.add(l, BorderLayout.WEST);
+
+            int initial = (int) Math.round(initialValue);
+            JSlider slider = new JSlider(min, max, initial);
+            slider.setOpaque(false);
+            slider.setPreferredSize(new Dimension(150, 20));
+            slider.addChangeListener(e -> {
+                if (!slider.getValueIsAdjusting()) {
+                    onChange.accept(slider.getValue());
+                }
+            });
+            row.add(slider, BorderLayout.EAST);
+            return row;
+        }
+
+        private JToggleButton pillToggle(boolean def) {
             JToggleButton t = new JToggleButton(def ? "ON" : "OFF", def);
             t.setFocusable(false);
             t.setOpaque(true);
@@ -705,120 +822,79 @@ public final class VyknaShell extends JFrame {
                     BorderFactory.createLineBorder(new Color(34, 36, 40)),
                     new EmptyBorder(6, 12, 6, 12)
             ));
-            t.setForeground(def ? TEXT : TEXT_DIM);
-            t.setBackground(def ? new Color(24, 26, 28) : new Color(16, 17, 19));
-
-            t.addActionListener(e -> {
-                boolean on = t.isSelected();
-                t.setText(on ? "ON" : "OFF");
-                t.setForeground(on ? TEXT : TEXT_DIM);
-                t.setBackground(on ? new Color(24, 26, 28) : new Color(16, 17, 19));
-            });
-
+            syncToggleVisual(t);
             return t;
         }
 
-        private JComponent divider() {
-            JPanel p = new JPanel();
-            p.setOpaque(true);
-            p.setBackground(BG);
-            p.setBorder(BorderFactory.createMatteBorder(0, 0, 1, 0, new Color(32, 34, 36)));
-            p.setPreferredSize(new Dimension(10, 10));
-            p.setMaximumSize(new Dimension(Integer.MAX_VALUE, 10));
-            return p;
+        private void syncToggleVisual(JToggleButton t) {
+            boolean on = t.isSelected();
+            t.setText(on ? "ON" : "OFF");
+            t.setForeground(on ? TEXT : TEXT_DIM);
+            t.setBackground(on ? new Color(24, 26, 28) : new Color(16, 17, 19));
         }
 
-        private JPanel infoCard(String title, String[] lines) {
-            JPanel p = new JPanel();
-            p.setLayout(new BoxLayout(p, BoxLayout.Y_AXIS));
-            p.setOpaque(true);
-            p.setBackground(new Color(16, 17, 19));
-            p.setBorder(BorderFactory.createCompoundBorder(
-                    BorderFactory.createLineBorder(new Color(32, 34, 36)),
-                    new EmptyBorder(10, 10, 10, 10)
-            ));
-            p.setAlignmentX(Component.LEFT_ALIGNMENT);
+        private int drawDistanceIndex(int drawDistance) {
+            if (drawDistance == 30) return 0;
+            if (drawDistance == 40) return 1;
+            if (drawDistance == 50) return 2;
+            if (drawDistance == 60) return 3;
+            return 4;
+        }
 
-            JLabel t = new JLabel(title);
-            t.setForeground(TEXT);
-            t.setFont(t.getFont().deriveFont(Font.BOLD, 12.5f));
-            p.add(t);
-
-            p.add(Box.createVerticalStrut(8));
-
-            for (String s : lines) {
-                JLabel l = new JLabel(s);
-                l.setForeground(TEXT_DIM);
-                l.setFont(l.getFont().deriveFont(12f));
-                p.add(l);
-                p.add(Box.createVerticalStrut(3));
+        private int inventoryMenuIndex() {
+            if (!Client.getUserSettings().isInventoryContextMenu()) {
+                return 0;
             }
-
-            return p;
+            int color = Client.getUserSettings().getStartMenuColor();
+            if (color == 0xFF00FF) return 1;
+            if (color == 0x00FF00) return 2;
+            if (color == 0x00FFFF) return 3;
+            if (color == 0xFF0000) return 4;
+            return 1;
         }
 
-        private JPanel actionsCard() {
-            JPanel p = new JPanel();
-            p.setLayout(new BoxLayout(p, BoxLayout.Y_AXIS));
-            p.setOpaque(true);
-            p.setBackground(new Color(16, 17, 19));
-            p.setBorder(BorderFactory.createCompoundBorder(
-                    BorderFactory.createLineBorder(new Color(32, 34, 36)),
-                    new EmptyBorder(10, 10, 10, 10)
-            ));
-            p.setAlignmentX(Component.LEFT_ALIGNMENT);
-
-            JLabel t = new JLabel("Quick Actions");
-            t.setForeground(TEXT);
-            t.setFont(t.getFont().deriveFont(Font.BOLD, 12.5f));
-            p.add(t);
-            p.add(Box.createVerticalStrut(8));
-
-            JButton reset = new JButton("Reset to defaults");
-            JButton discord = new JButton("Open Discord");
-            JButton reload = new JButton("Reload UI");
-
-            // You can wire these later; for now they're safe placeholders
-            reset.addActionListener(e -> {
-                openSidebarToggle.setSelected(true);
-                openSidebarToggle.doClick(0); // refresh visuals
-                animSmoothToggle.setSelected(true); animSmoothToggle.doClick(0);
-                particleToggle.setSelected(true); particleToggle.doClick(0);
-                hdTexToggle.setSelected(false); hdTexToggle.doClick(0);
-            });
-
-            discord.addActionListener(e -> openBrowser("https://discord.gg/yourcode"));
-            reload.addActionListener(e -> SwingUtilities.getWindowAncestor(this).repaint());
-
-            p.add(reset);
-            p.add(Box.createVerticalStrut(6));
-            p.add(discord);
-            p.add(Box.createVerticalStrut(6));
-            p.add(reload);
-
-            return p;
+        private int dragTimeIndex() {
+            int drag = Preferences.getPreferences().dragTime;
+            if (drag == 5) return 0;
+            if (drag == 6) return 1;
+            if (drag == 8) return 2;
+            if (drag == 10) return 3;
+            return 4;
         }
 
-        // ---------------- Data helpers ----------------
-
-        private String getClientBuildString() {
-            // Swap this for your real version constant if you have one
-            // e.g. Configuration.CLIENT_VERSION
-            return "0.1.0";
+        private boolean isStatusBarsEnabled() {
+            return com.client.Configuration.statusBars;
         }
 
-        private String getModeString() {
+        private boolean isRemoveRoofsEnabled() {
+            return Client.removeRoofs;
+        }
+
+        private boolean isMenuHoversEnabled() {
+            return com.client.Configuration.menuHovers;
+        }
+
+        private boolean isTrue(boolean value) {
+            return value;
+        }
+
+        private int booleanToIndex(boolean value) {
+            return value ? 0 : 1;
+        }
+
+        private void persistSettings() {
             try {
-                // If you have something better (ScreenMode state), swap it in
-                return (Client.currentGameWidth > 800) ? "Resizable" : "Fixed";
-            } catch (Throwable t) {
-                return "Fixed";
+                SettingsManager.saveSettings(Client.getInstance());
+            } catch (Exception ignored) {
             }
+            Preferences.save();
         }
     }
 
 
     private static final class CharacterInfoPanel extends JPanel {
+        private final JPanel listPanel;
+
         CharacterInfoPanel() {
             super(new BorderLayout());
             setOpaque(true);
@@ -827,32 +903,42 @@ public final class VyknaShell extends JFrame {
             JPanel body = cardRoot();
             body.add(new SectionTitle("Character Information"));
 
-            body.add(kv("Quest Points", "0"));
-            body.add(kv("Slayer Points", "0"));
-            body.add(kv("Slayer Task", "None"));
-            body.add(kv("Slayer Task Amount", "0"));
-            body.add(kv("Donator Points", "0"));
-            body.add(kv("Vote Points", "0"));
-            body.add(kv("Rank", "Player"));
+            listPanel = new JPanel();
+            listPanel.setOpaque(true);
+            listPanel.setBackground(BG);
+            listPanel.setLayout(new BoxLayout(listPanel, BoxLayout.Y_AXIS));
+            body.add(listPanel);
 
-            add(body, BorderLayout.NORTH);
+            add(body, BorderLayout.CENTER);
+            refresh();
         }
 
-        private JPanel kv(String k, String v) {
-            JPanel row = new JPanel(new BorderLayout());
-            row.setOpaque(true);
-            row.setBackground(BG);
-            row.setBorder(new EmptyBorder(5, 0, 5, 0));
+        void refresh() {
+            listPanel.removeAll();
+            List<String> infoLines = QuestTab.getInfoLines();
+            if (infoLines.isEmpty()) {
+                listPanel.add(textLine("No character data loaded yet."));
+            } else {
+                for (String line : infoLines) {
+                    if (line == null || line.trim().isEmpty()) {
+                        continue;
+                    }
+                    listPanel.add(textLine(stripTags(line)));
+                }
+            }
+            listPanel.revalidate();
+            listPanel.repaint();
+        }
 
-            JLabel left = new JLabel(k);
-            left.setForeground(TEXT_DIM);
+        private JLabel textLine(String text) {
+            JLabel label = new JLabel(text);
+            label.setForeground(TEXT_DIM);
+            label.setBorder(new EmptyBorder(3, 0, 3, 0));
+            return label;
+        }
 
-            JLabel right = new JLabel(v);
-            right.setForeground(TEXT);
-
-            row.add(left, BorderLayout.WEST);
-            row.add(right, BorderLayout.EAST);
-            return row;
+        private String stripTags(String line) {
+            return line.replaceAll("@[a-zA-Z0-9]{2,3}@", "").trim();
         }
     }
 
@@ -869,7 +955,7 @@ public final class VyknaShell extends JFrame {
             label.setForeground(TEXT_DIM);
             body.add(label);
 
-            add(body, BorderLayout.NORTH);
+            add(body, BorderLayout.CENTER);
         }
     }
 
@@ -888,7 +974,7 @@ public final class VyknaShell extends JFrame {
             body.add(linkBtn("Donate", "https://your-donate-link"));
             body.add(linkBtn("YouTube", "https://youtube.com/@yourchannel"));
 
-            add(body, BorderLayout.NORTH);
+            add(body, BorderLayout.CENTER);
         }
 
         private JButton linkBtn(String text, String url) {
@@ -943,7 +1029,7 @@ public final class VyknaShell extends JFrame {
             view.addActionListener(e -> openBrowser("https://discord.gg/yourcode"));
             body.add(view);
 
-            add(body, BorderLayout.NORTH);
+            add(body, BorderLayout.CENTER);
         }
     }
 
@@ -960,7 +1046,7 @@ public final class VyknaShell extends JFrame {
             body.add(Box.createVerticalStrut(8));
             body.add(dropdown("2026-01-01", "• Happy new year patch\n• Balance tweaks\n• Bug fixes"));
 
-            add(body, BorderLayout.NORTH);
+            add(body, BorderLayout.CENTER);
         }
 
         private JComponent dropdown(String date, String text) {
@@ -1012,6 +1098,7 @@ public final class VyknaShell extends JFrame {
 
             JList<String> list = new JList<>(model);
             list.setVisibleRowCount(8);
+            list.setBorder(new EmptyBorder(6, 6, 6, 6));
 
             list.addListSelectionListener(e -> {
                 if (!e.getValueIsAdjusting()) {
@@ -1026,7 +1113,7 @@ public final class VyknaShell extends JFrame {
             JScrollPane sp = new JScrollPane(list);
             body.add(sp);
 
-            add(body, BorderLayout.NORTH);
+            add(body, BorderLayout.CENTER);
         }
     }
 
@@ -1048,8 +1135,12 @@ public final class VyknaShell extends JFrame {
             b.addActionListener(e -> openBrowser("https://discord.gg/yourcode"));
             body.add(b);
 
-            add(body, BorderLayout.NORTH);
+            add(body, BorderLayout.CENTER);
         }
+    }
+
+    private interface SliderValueConsumer {
+        void accept(double value);
     }
 
 }
