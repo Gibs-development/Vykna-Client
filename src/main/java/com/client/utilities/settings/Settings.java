@@ -17,6 +17,7 @@ public class Settings implements Serializable {
 
 	public static Settings getDefault() {
 		Settings settings = new Settings();
+		settings.interfaceStyle = InterfaceStyle.OSRS;
 		settings.oldGameframe = false;
 		settings.gameTimers = true;
 		settings.antiAliasing = false;
@@ -34,6 +35,7 @@ public class Settings implements Serializable {
 	}
 
 	private boolean oldGameframe;
+	private InterfaceStyle interfaceStyle;
 	private boolean gameTimers;
 	private boolean antiAliasing;
 	private boolean groundItemOverlay;
@@ -57,6 +59,14 @@ public class Settings implements Serializable {
 
 	public void setOldGameframe(boolean oldGameframe) {
 		this.oldGameframe = oldGameframe;
+	}
+
+	public InterfaceStyle getInterfaceStyle() {
+		return interfaceStyle == null ? InterfaceStyle.OSRS : interfaceStyle;
+	}
+
+	public void setInterfaceStyle(InterfaceStyle interfaceStyle) {
+		this.interfaceStyle = interfaceStyle;
 	}
 
 	public boolean isAntiAliasing() {
