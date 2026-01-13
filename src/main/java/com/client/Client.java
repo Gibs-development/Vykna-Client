@@ -19230,7 +19230,7 @@ public class Client extends RSApplet {
 	private Sprite[] chatButtons;
 
 	Client() {
-		runOnEdt(() -> gameComponentHost.setGameComponent(this));
+		updateGameComponentHost(this);
 		firstLoginMessage = "";
 		xpAddedPos = expAdded = 0;
 		xpLock = false;
