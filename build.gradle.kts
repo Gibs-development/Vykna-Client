@@ -1,5 +1,4 @@
-import proguard.gradle.ProGuardTask
-import org.gradle.jvm.tasks.Jar
+@file:OptIn(ExperimentalStdlibApi::class)
 
 plugins {
     java
@@ -17,25 +16,20 @@ tasks.withType<JavaCompile>().configureEach {
 }
 
 repositories {
-    mavenCentral()
+    mavenCentral {
+        metadataSources {
+            mavenPom()
+            artifact()
+            ignoreGradleMetadataRedirection()
+        }
+    }
     maven("https://jitpack.io")
     maven("https://repo.runelite.net")
 }
 
-buildscript {
-    repositories {
-        mavenCentral()
-    }
-    dependencies {
-        classpath("net.sf.proguard:proguard-gradle:6.0.2")
-    }
-}
-
 sourceSets {
     named("main") {
-        java.srcDirs(
-            "src/main/java",
-        )
+        java.srcDirs("src/main/java")
         resources.srcDirs(
             "runelite/http-api/src/main/resources",
             "runelite/runelite-client/src/main/resources"
@@ -43,10 +37,26 @@ sourceSets {
     }
 }
 
-dependencies {
+/**
+ * Hard safety: never allow legacy lwjgl-platform to appear.
+ */
+configurations.all {
+    exclude(group = "org.lwjgl", module = "lwjgl-platform")
+}
 
-    val lwjglVersion = "3.3.3"
-    val lwjglNatives = listOf("natives-windows", "natives-linux")
+/**
+ * Optional: hard-lock LWJGL version if anything tries to pull another one.
+ * (Safe to keep; helps avoid surprises.)
+ */
+configurations.all {
+    resolutionStrategy.eachDependency {
+        if (requested.group == "org.lwjgl") {
+            useVersion("3.3.3")
+        }
+    }
+}
+
+dependencies {
 
     /* Core */
     implementation("com.thoughtworks.xstream:xstream:1.4.7")
@@ -85,14 +95,21 @@ dependencies {
     compileOnly("org.projectlombok:lombok:1.18.8")
     annotationProcessor("org.projectlombok:lombok:1.18.8")
 
-    /* GPU Presenter */
+    /* GPU Presenter (LWJGL) */
+    val lwjglVersion = "3.3.3"
+
     implementation("org.lwjgl:lwjgl:$lwjglVersion")
     implementation("org.lwjgl:lwjgl-opengl:$lwjglVersion")
-    implementation("org.lwjgl:lwjgl-awt:$lwjglVersion")
-    lwjglNatives.forEach { native ->
-        runtimeOnly("org.lwjgl:lwjgl:$lwjglVersion:$native")
-        runtimeOnly("org.lwjgl:lwjgl-opengl:$lwjglVersion:$native")
+    implementation("org.lwjgl:lwjgl-jawt:$lwjglVersion") // NOTE: no natives exist for jawt
+
+    // AWT bridge (exclude LWJGL so it can't reintroduce ${lwjgl.natives} issues)
+    implementation("org.lwjglx:lwjgl3-awt:0.2.3") {
+        exclude(group = "org.lwjgl")
     }
+
+    // Windows natives ONLY for modules that actually ship natives
+    runtimeOnly("org.lwjgl:lwjgl:$lwjglVersion:natives-windows")
+    runtimeOnly("org.lwjgl:lwjgl-opengl:$lwjglVersion:natives-windows")
 
     /* Testing */
     testImplementation("org.junit.jupiter:junit-jupiter-api:5.9.0")
@@ -101,48 +118,4 @@ dependencies {
 
 tasks.test {
     useJUnitPlatform()
-}
-
-tasks.register<Jar>("createStandardJar") {
-    archiveFileName.set("NotObfuscatedClient.jar")
-    from(sourceSets["main"].output)
-    manifest {
-        attributes["Main-Class"] = "com.client.Client"
-    }
-    dependsOn(configurations.runtimeClasspath)
-    from({
-        configurations.runtimeClasspath.get()
-            .filter { it.name.endsWith(".jar") }
-            .map { zipTree(it) }
-    })
-}
-
-tasks.register<Jar>("createRuneliteJar") {
-    archiveFileName.set("NotObfuscatedRunelite.jar")
-    from(sourceSets["main"].output)
-    manifest {
-        attributes["Main-Class"] = "net.runelite.client.RuneLite"
-    }
-    dependsOn(configurations.runtimeClasspath)
-    from({
-        configurations.runtimeClasspath.get()
-            .filter { it.name.endsWith(".jar") }
-            .map { zipTree(it) }
-    })
-}
-
-tasks.register<ProGuardTask>("obfuscateStandard") {
-    configuration("proguard.conf")
-
-    configurations.runtimeClasspath.get().forEach {
-        libraryjars(it)
-    }
-
-    injars("build/libs/NotObfuscatedClient.jar")
-    outjars("build/libs/deploy/ObfuscatedClient.jar")
-}
-
-tasks.register("buildJars") {
-    dependsOn("createStandardJar")
-    dependsOn("obfuscateStandard")
 }

@@ -4337,14 +4337,10 @@ public class Client extends RSApplet {
 			Sprite.init();
 			Signlink.storeid = 32;
 			Signlink.startpriv(InetAddress.getLocalHost());
-			if (runelite) {
-				instance = new Client();
-				gameContainer = instance.getGameComponentHost();
-			} else {
 				instance = new ClientWindow(args);
 				appFrame = ClientWindow.getFrame();
 				gameContainer = ClientWindow.getFrame();
-			}
+
 		} catch (Exception exception) {
 			exception.printStackTrace();
 		}
@@ -8022,7 +8018,7 @@ public class Client extends RSApplet {
 							updateGpuPresenterState();
 							updateFpsCap(gpuFpsCap);
 							pushMessage("GPU presenter " + (gpuEnabled ? "enabled" : "disabled") + ".", 0, "");
-							suppressServerCommand = true;
+
 						}
 
 						if (inputString.startsWith("::sharpen")) {
@@ -8033,7 +8029,6 @@ public class Client extends RSApplet {
 							} catch (Exception e) {
 								pushMessage("Usage: ::sharpen 0..2", 0, "");
 							}
-							suppressServerCommand = true;
 						}
 
 						if (inputString.startsWith("::saturation")) {
@@ -8044,7 +8039,6 @@ public class Client extends RSApplet {
 							} catch (Exception e) {
 								pushMessage("Usage: ::saturation 0..2", 0, "");
 							}
-							suppressServerCommand = true;
 						}
 
 						if (inputString.startsWith("::fpscap")) {
@@ -8058,7 +8052,6 @@ public class Client extends RSApplet {
 							} catch (Exception e) {
 								pushMessage("Usage: ::fpscap 0|30|60|120|240", 0, "");
 							}
-							suppressServerCommand = true;
 						}
 
 						if (inputString.startsWith("::gpufilter")) {
@@ -8074,23 +8067,21 @@ public class Client extends RSApplet {
 							} else {
 								pushMessage("Usage: ::gpufilter linear|nearest", 0, "");
 							}
-							suppressServerCommand = true;
 						}
 
 						if (inputString.startsWith("::vsync")) {
 							String option = inputString.replace("::vsync", "").trim();
 							if (option.equalsIgnoreCase("on")) {
 								gpuVsync = true;
-								GPU_PRESENTER.setVsyncEnabled(true);
+						//		GPU_PRESENTER.setVsyncEnabled(true);
 								pushMessage("VSync enabled.", 0, "");
 							} else if (option.equalsIgnoreCase("off")) {
 								gpuVsync = false;
-								GPU_PRESENTER.setVsyncEnabled(false);
+						//		GPU_PRESENTER.setVsyncEnabled(false);
 								pushMessage("VSync disabled.", 0, "");
 							} else {
 								pushMessage("Usage: ::vsync on|off", 0, "");
 							}
-							suppressServerCommand = true;
 						}
 
 						if (inputString.startsWith("::gpuskip")) {
@@ -8106,7 +8097,6 @@ public class Client extends RSApplet {
 							} else {
 								pushMessage("Usage: ::gpuskip on|off", 0, "");
 							}
-							suppressServerCommand = true;
 						}
 
 
@@ -16239,10 +16229,10 @@ public class Client extends RSApplet {
 			//	logo2021.drawAdvancedSprite(386 - (logo2021.myWidth / 2),85 - (logo2021.myHeight / 2));
 		}
 
-		//if (Configuration.developerMode) {
+		if (Configuration.developerMode) {
 		newSmallFont.drawString("FPS: " + super.getFps(), 4, 12, Integer.MAX_VALUE, 0, 255);
 		newSmallFont.drawString("Mouse: [" + super.getMouseX() + ", " + super.getMouseY() + "] [" + super.getRawMouseX() + ", " + super.getRawMouseY() + "]", 4, 12 + 12, Integer.MAX_VALUE, 0, 255);
-		//}
+		}
 
 		int j = centerY - 40;
 

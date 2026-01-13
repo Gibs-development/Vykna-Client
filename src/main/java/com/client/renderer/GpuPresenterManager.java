@@ -38,14 +38,9 @@ public final class GpuPresenterManager {
 
     public void setVsyncEnabled(boolean vsyncEnabled) {
         this.vsyncEnabled = vsyncEnabled;
-        if (presenter != null) {
-            try {
-                presenter.setSwapInterval(vsyncEnabled ? 1 : 0);
-            } catch (Exception ignored) {
-            }
-        }
+        // AWTGLCanvas doesn't expose setSwapInterval().
+        // We'll implement platform-specific swap control later.
     }
-
     public boolean isVsyncEnabled() {
         return vsyncEnabled;
     }
