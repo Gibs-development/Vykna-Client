@@ -7,6 +7,7 @@ import org.lwjgl.opengl.awt.GLData;
 
 import java.nio.ByteBuffer;
 import java.nio.FloatBuffer;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.lwjgl.opengl.GL11.*;
 import static org.lwjgl.opengl.GL12.GL_BGRA;
@@ -69,13 +70,20 @@ public final class GpuPresenter extends AWTGLCanvas {
     private int textureHeight = -1;
 
     private boolean initialized = false;
-    private final boolean debugEnabled = Boolean.getBoolean("gpu.debug");
+    private boolean debugEnabled = false;
     private boolean linearFilter = false;
+    private final Object gpuInfoLock = new Object();
+    private String gpuInfoMessage;
+    private final AtomicBoolean disposed = new AtomicBoolean(false);
 
     public GpuPresenter(GLData data) {
         super(data);
         setFocusable(true);
         setIgnoreRepaint(true);
+    }
+
+    public void setDebugEnabled(boolean debugEnabled) {
+        this.debugEnabled = debugEnabled;
     }
 
     public void setLinearFilter(boolean linearFilter) {
@@ -105,12 +113,7 @@ public final class GpuPresenter extends AWTGLCanvas {
                     setupBuffers();
                     setupTexture();
                     initialized = true;
-
-                    if (debugEnabled) {
-                        System.out.println("[GPU] Vendor: " + glGetString(GL_VENDOR));
-                        System.out.println("[GPU] Renderer: " + glGetString(GL_RENDERER));
-                        System.out.println("[GPU] Version: " + glGetString(GL_VERSION));
-                    }
+                    populateGpuInfo();
                 }
 
                 renderFrameInContext(context);
@@ -119,7 +122,7 @@ public final class GpuPresenter extends AWTGLCanvas {
             // Present backbuffer after drawing.
             swapBuffers();
         } catch (Exception ex) {
-            ex.printStackTrace();
+            throw new RuntimeException("GPU presenter render failed.", ex);
         }
     }
 
@@ -134,7 +137,7 @@ public final class GpuPresenter extends AWTGLCanvas {
     }
 
     public void shutdown() {
-        if (!initialized) return;
+        if (!initialized || disposed.getAndSet(true)) return;
 
         try {
             runInContext(() -> {
@@ -159,6 +162,48 @@ public final class GpuPresenter extends AWTGLCanvas {
             });
         } catch (Exception e) {
             e.printStackTrace();
+        }
+    }
+
+    public String consumeGpuInfoMessage() {
+        synchronized (gpuInfoLock) {
+            String message = gpuInfoMessage;
+            gpuInfoMessage = null;
+            return message;
+        }
+    }
+
+    public void resetGpuInfoMessage() {
+        synchronized (gpuInfoLock) {
+            gpuInfoMessage = null;
+        }
+    }
+
+    private void populateGpuInfo() {
+        String vendor = null;
+        String renderer = null;
+        String version = null;
+        try {
+            vendor = glGetString(GL_VENDOR);
+            renderer = glGetString(GL_RENDERER);
+            version = glGetString(GL_VERSION);
+        } catch (Exception ignored) {
+            // We'll fall back to unknown GPU below.
+        }
+
+        String message;
+        if (vendor == null || renderer == null || version == null) {
+            message = "Using GPU - Unknown GPU";
+        } else {
+            message = "Using GPU - " + vendor + " " + renderer + " (" + version + ")";
+        }
+
+        synchronized (gpuInfoLock) {
+            gpuInfoMessage = message;
+        }
+
+        if (debugEnabled) {
+            System.out.println("[GPU] " + message);
         }
     }
 
