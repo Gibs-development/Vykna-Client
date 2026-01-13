@@ -2,6 +2,8 @@ package com.client.utilities.settings;
 
 import java.awt.*;
 import java.io.Serializable;
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * 
@@ -17,6 +19,9 @@ public class Settings implements Serializable {
 
 	public static Settings getDefault() {
 		Settings settings = new Settings();
+		settings.interfaceStyle = InterfaceStyle.OSRS;
+		settings.rs3EditMode = false;
+		settings.rs3PanelBackgroundColor = 0x141414;
 		settings.oldGameframe = false;
 		settings.gameTimers = true;
 		settings.antiAliasing = false;
@@ -34,6 +39,9 @@ public class Settings implements Serializable {
 	}
 
 	private boolean oldGameframe;
+	private InterfaceStyle interfaceStyle;
+	private boolean rs3EditMode;
+	private int rs3PanelBackgroundColor;
 	private boolean gameTimers;
 	private boolean antiAliasing;
 	private boolean groundItemOverlay;
@@ -48,6 +56,7 @@ public class Settings implements Serializable {
 	private int drawDistance;
 	private boolean stretchedMode;
 	private Dimension stretchedModeDimensions;
+	private Map<Integer, Rs3PanelLayout> rs3PanelLayouts;
 
 	public Settings() {}
 
@@ -57,6 +66,47 @@ public class Settings implements Serializable {
 
 	public void setOldGameframe(boolean oldGameframe) {
 		this.oldGameframe = oldGameframe;
+	}
+
+	public InterfaceStyle getInterfaceStyle() {
+		return interfaceStyle == null ? InterfaceStyle.OSRS : interfaceStyle;
+	}
+
+	public void setInterfaceStyle(InterfaceStyle interfaceStyle) {
+		this.interfaceStyle = interfaceStyle;
+	}
+
+	public boolean isRs3EditMode() {
+		return rs3EditMode;
+	}
+
+	public void setRs3EditMode(boolean rs3EditMode) {
+		this.rs3EditMode = rs3EditMode;
+	}
+
+	public int getRs3PanelBackgroundColor() {
+		return rs3PanelBackgroundColor == 0 ? 0x141414 : rs3PanelBackgroundColor;
+	}
+
+	public void setRs3PanelBackgroundColor(int rs3PanelBackgroundColor) {
+		this.rs3PanelBackgroundColor = rs3PanelBackgroundColor;
+	}
+
+	public Map<Integer, Rs3PanelLayout> getRs3PanelLayouts() {
+		if (rs3PanelLayouts == null) {
+			rs3PanelLayouts = new HashMap<>();
+		}
+		return rs3PanelLayouts;
+	}
+
+	public void setRs3PanelLayouts(Map<Integer, Rs3PanelLayout> rs3PanelLayouts) {
+		this.rs3PanelLayouts = rs3PanelLayouts;
+	}
+
+	public void clearRs3PanelLayouts() {
+		if (rs3PanelLayouts != null) {
+			rs3PanelLayouts.clear();
+		}
 	}
 
 	public boolean isAntiAliasing() {
@@ -175,5 +225,41 @@ public class Settings implements Serializable {
 	private boolean statusBars;
 	public void setStatusBars(boolean statusBars) {
 		this.statusBars = statusBars;
+	}
+
+	public static class Rs3PanelLayout implements Serializable {
+		private final int x;
+		private final int y;
+		private final int width;
+		private final int height;
+		private final boolean visible;
+
+		public Rs3PanelLayout(int x, int y, int width, int height, boolean visible) {
+			this.x = x;
+			this.y = y;
+			this.width = width;
+			this.height = height;
+			this.visible = visible;
+		}
+
+		public int getX() {
+			return x;
+		}
+
+		public int getY() {
+			return y;
+		}
+
+		public int getWidth() {
+			return width;
+		}
+
+		public int getHeight() {
+			return height;
+		}
+
+		public boolean isVisible() {
+			return visible;
+		}
 	}
 }

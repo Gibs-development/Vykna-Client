@@ -10,6 +10,7 @@ import com.client.graphics.interfaces.settings.Setting;
 import com.client.graphics.interfaces.settings.SettingsInterface;
 import com.client.graphics.interfaces.dropdown.StretchedModeMenu;
 import com.client.graphics.interfaces.impl.QuestTab;
+import com.client.utilities.settings.InterfaceStyle;
 import com.client.utilities.settings.Settings;
 import com.client.utilities.settings.SettingsManager;
 
@@ -32,6 +33,7 @@ public final class VyknaShell extends JFrame {
 
     private static final int SIDEBAR_WIDTH = 320;
     private static final int ICON_STRIP_WIDTH = 50;
+    private static final int RESIZE_MARGIN = 12;
     private final JPanel sidebar = new JPanel();
     private final JPanel iconStrip = new JPanel();
     private final CardLayout cardLayout = new CardLayout();
@@ -59,6 +61,9 @@ public final class VyknaShell extends JFrame {
 
 
     private boolean sidebarHidden = false;
+    private boolean resizingWindow = false;
+    private Point resizeStart;
+    private Dimension resizeStartSize;
 
     // Icon tabs
     private IconTabButton homeBtn;
@@ -84,6 +89,7 @@ public final class VyknaShell extends JFrame {
         root.setBackground(BG);
         root.setBorder(BorderFactory.createLineBorder(BORDER));
         setContentPane(root);
+        installResizeHandler(root);
 
         TitleBar titleBar = new TitleBar(title, this);
         root.add(titleBar, BorderLayout.NORTH);
@@ -245,6 +251,10 @@ public final class VyknaShell extends JFrame {
         show("settings", settingsBtn);
 
         pack();
+        Settings settings = Client.getUserSettings();
+        if (settings != null) {
+            updateResizableState(Client.currentScreenMode, settings.getInterfaceStyle());
+        }
     }
 
 
@@ -307,10 +317,80 @@ public final class VyknaShell extends JFrame {
         }
         Dimension applied = new Dimension(size);
         gameWrap.setPreferredSize(applied);
-        gameWrap.setMinimumSize(applied);
+        if (canResizeShell()) {
+            gameWrap.setMinimumSize(ScreenMode.RESIZABLE.getDimensions());
+        } else {
+            gameWrap.setMinimumSize(applied);
+        }
         gameWrap.revalidate();
         gameWrap.repaint();
         pack();
+    }
+
+    public void updateResizableState(ScreenMode mode, InterfaceStyle style) {
+        boolean resizable = mode == ScreenMode.RESIZABLE && style == InterfaceStyle.RS3;
+        setResizable(resizable);
+        if (resizable) {
+            setMinimumSize(new Dimension(765 + (sidebarHidden ? 0 : SIDEBAR_WIDTH + ICON_STRIP_WIDTH), 610));
+        }
+    }
+
+    private boolean canResizeShell() {
+        Settings settings = Client.getUserSettings();
+        return settings != null && settings.getInterfaceStyle() == InterfaceStyle.RS3 && Client.currentScreenMode == ScreenMode.RESIZABLE;
+    }
+
+    private void installResizeHandler(JComponent root) {
+        MouseAdapter adapter = new MouseAdapter() {
+            @Override
+            public void mouseMoved(MouseEvent e) {
+                if (canResizeShell() && isInResizeZone(e.getPoint(), root)) {
+                    setCursor(Cursor.getPredefinedCursor(Cursor.SE_RESIZE_CURSOR));
+                } else {
+                    setCursor(Cursor.getDefaultCursor());
+                }
+            }
+
+            @Override
+            public void mousePressed(MouseEvent e) {
+                if (!canResizeShell()) {
+                    return;
+                }
+                if (isInResizeZone(e.getPoint(), root)) {
+                    resizingWindow = true;
+                    resizeStart = e.getLocationOnScreen();
+                    resizeStartSize = getSize();
+                }
+            }
+
+            @Override
+            public void mouseReleased(MouseEvent e) {
+                resizingWindow = false;
+            }
+
+            @Override
+            public void mouseDragged(MouseEvent e) {
+                if (!resizingWindow) {
+                    return;
+                }
+                Point current = e.getLocationOnScreen();
+                int deltaX = current.x - resizeStart.x;
+                int deltaY = current.y - resizeStart.y;
+                int newWidth = resizeStartSize.width + deltaX;
+                int newHeight = resizeStartSize.height + deltaY;
+                Dimension min = getMinimumSize();
+                newWidth = Math.max(min.width, newWidth);
+                newHeight = Math.max(min.height, newHeight);
+                setSize(newWidth, newHeight);
+                revalidate();
+            }
+        };
+        root.addMouseListener(adapter);
+        root.addMouseMotionListener(adapter);
+    }
+
+    private boolean isInResizeZone(Point point, JComponent root) {
+        return point.x >= root.getWidth() - RESIZE_MARGIN && point.y >= root.getHeight() - RESIZE_MARGIN;
     }
 
 
@@ -712,6 +792,7 @@ public final class VyknaShell extends JFrame {
             }));
 
             body.add(sectionHeader("Interface"));
+            addSettingDropdown(SettingsInterface.INTERFACE_STYLE, interfaceStyleIndex(settings.getInterfaceStyle()));
             addSettingToggle(SettingsInterface.OLD_GAMEFRAME, isTrue(settings.isOldGameframe()));
             addSettingDropdown(SettingsInterface.INVENTORY_MENU, inventoryMenuIndex());
             addSettingDropdown(SettingsInterface.CHAT_EFFECT, settings.getChatColor());
@@ -720,6 +801,8 @@ public final class VyknaShell extends JFrame {
             addSettingToggle(SettingsInterface.PLAYER_PROFILE, false);
             addSettingToggle(SettingsInterface.GAME_TIMERS, isTrue(settings.isGameTimers()));
             addSettingDropdown(SettingsInterface.PM_NOTIFICATION, booleanToIndex(Preferences.getPreferences().pmNotifications));
+            addRs3EditModeControls(settings);
+            addRs3PanelBackgroundSetting(settings);
 
             body.add(sectionHeader("Gameplay"));
             addSettingToggle(SettingsInterface.BOUNTY_HUNTER, isTrue(settings.isBountyHunter()));
@@ -782,6 +865,9 @@ public final class VyknaShell extends JFrame {
                 if (setting == SettingsInterface.STRETCHED_MODE) {
                     StretchedModeMenu.updateStretchedMode(index == 0);
                 }
+                if (setting == SettingsInterface.INTERFACE_STYLE) {
+                    refreshRs3Controls();
+                }
                 persistSettings();
             });
             body.add(row(setting.getSettingName(), combo));
@@ -836,6 +922,113 @@ public final class VyknaShell extends JFrame {
             if (drawDistance == 50) return 2;
             if (drawDistance == 60) return 3;
             return 4;
+        }
+
+        private int interfaceStyleIndex(InterfaceStyle style) {
+            return style == InterfaceStyle.RS3 ? 1 : 0;
+        }
+
+        private JToggleButton rs3EditModeToggle;
+        private JButton rs3ResetLayoutButton;
+        private JComboBox<String> rs3PanelBackgroundDropdown;
+
+        private void addRs3EditModeControls(Settings settings) {
+            rs3EditModeToggle = pillToggle(settings.isRs3EditMode());
+            rs3EditModeToggle.addActionListener(e -> {
+                Settings currentSettings = Client.getUserSettings();
+                if (currentSettings == null || currentSettings.getInterfaceStyle() != InterfaceStyle.RS3) {
+                    rs3EditModeToggle.setSelected(false);
+                    syncToggleVisual(rs3EditModeToggle);
+                    return;
+                }
+                Client instance = Client.getInstance();
+                if (instance != null) {
+                    instance.setRs3EditMode(rs3EditModeToggle.isSelected());
+                } else {
+                    currentSettings.setRs3EditMode(rs3EditModeToggle.isSelected());
+                }
+                persistSettings();
+                syncToggleVisual(rs3EditModeToggle);
+            });
+
+            rs3ResetLayoutButton = new JButton("Reset");
+            rs3ResetLayoutButton.addActionListener(e -> {
+                if (settings.getInterfaceStyle() != InterfaceStyle.RS3) {
+                    return;
+                }
+                Client.getInstance().resetRs3PanelLayout();
+                persistSettings();
+            });
+
+            body.add(row("RS3 Edit Mode", rs3EditModeToggle));
+            body.add(row("Reset RS3 Layout", rs3ResetLayoutButton));
+            refreshRs3Controls();
+        }
+
+        private void addRs3PanelBackgroundSetting(Settings settings) {
+            String[] options = { "Dark", "Slate", "Blue", "Crimson" };
+            rs3PanelBackgroundDropdown = new JComboBox<>(options);
+            rs3PanelBackgroundDropdown.setSelectedIndex(rs3PanelBackgroundIndex(settings.getRs3PanelBackgroundColor()));
+            rs3PanelBackgroundDropdown.addActionListener(e -> {
+                int index = rs3PanelBackgroundDropdown.getSelectedIndex();
+                settings.setRs3PanelBackgroundColor(rs3PanelBackgroundColorForIndex(index));
+                persistSettings();
+            });
+            body.add(row("RS3 Panel Background", rs3PanelBackgroundDropdown));
+        }
+
+        private void refreshRs3Controls() {
+            Settings settings = Client.getUserSettings();
+            if (settings == null) {
+                return;
+            }
+            boolean rs3 = settings.getInterfaceStyle() == InterfaceStyle.RS3;
+            if (rs3EditModeToggle != null) {
+                rs3EditModeToggle.setEnabled(rs3);
+                rs3EditModeToggle.setSelected(settings.isRs3EditMode());
+                syncToggleVisual(rs3EditModeToggle);
+                if (!rs3) {
+                    Client instance = Client.getInstance();
+                    if (instance != null) {
+                        instance.setRs3EditMode(false);
+                    }
+                    rs3EditModeToggle.setSelected(false);
+                    syncToggleVisual(rs3EditModeToggle);
+                }
+            }
+            if (rs3ResetLayoutButton != null) {
+                rs3ResetLayoutButton.setEnabled(rs3);
+            }
+            if (rs3PanelBackgroundDropdown != null) {
+                rs3PanelBackgroundDropdown.setEnabled(rs3);
+                rs3PanelBackgroundDropdown.setSelectedIndex(rs3PanelBackgroundIndex(settings.getRs3PanelBackgroundColor()));
+            }
+        }
+
+        private int rs3PanelBackgroundIndex(int color) {
+            if (color == 0x1a1f24) {
+                return 1;
+            }
+            if (color == 0x121a2c) {
+                return 2;
+            }
+            if (color == 0x2a1616) {
+                return 3;
+            }
+            return 0;
+        }
+
+        private int rs3PanelBackgroundColorForIndex(int index) {
+            switch (index) {
+                case 1:
+                    return 0x1a1f24;
+                case 2:
+                    return 0x121a2c;
+                case 3:
+                    return 0x2a1616;
+                default:
+                    return 0x141414;
+            }
         }
 
         private int inventoryMenuIndex() {
@@ -1307,10 +1500,6 @@ public final class VyknaShell extends JFrame {
                 g2.dispose();
             }
         }
-    }
-
-    private interface SliderValueConsumer {
-        void accept(double value);
     }
 
     private interface SliderValueConsumer {

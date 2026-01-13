@@ -9,6 +9,8 @@ import java.util.Arrays;
 
 public class SettingsInterface extends RSInterface {
 
+    public static final Setting INTERFACE_STYLE = new Setting("Interface Style", 0, new InterfaceStyleMenu(), "OSRS", "RS3");
+    public static final Setting RS3_EDIT_MODE = new Setting("RS3 Edit Mode", 1, new Rs3EditModeMenu(), "Off", "On");
     public static final Setting OLD_GAMEFRAME = new Setting("Gameframe", 1, new OldGameframeMenu(), "2006", "OSRS");
     public static final Setting GAME_TIMERS = new Setting("Game Timers", 0, new GameTimersMenu(), "On", "Off");
     public static final Setting ANTI_ALIASING = new Setting("Anti-aliasing", 1, new AntiAliasingMenu(), "On", "Off");
@@ -62,7 +64,7 @@ public class SettingsInterface extends RSInterface {
         childIndex = 0;
 
         SettingsWidgetSection[] sections = {
-                new SettingsWidgetSection("Interface Options", OLD_GAMEFRAME, INVENTORY_MENU, BOUNTY_HUNTER, ENTITY_TARGET, GAME_TIMERS, CHAT_EFFECT, GROUND_ITEM_NAMES, PM_NOTIFICATION),
+                new SettingsWidgetSection("Interface Options", INTERFACE_STYLE, RS3_EDIT_MODE, OLD_GAMEFRAME, INVENTORY_MENU, BOUNTY_HUNTER, ENTITY_TARGET, GAME_TIMERS, CHAT_EFFECT, GROUND_ITEM_NAMES, PM_NOTIFICATION),
                 new SettingsWidgetSection("Graphics Options", STRETCHED_MODE, DRAW_DISTANCE, ANTI_ALIASING, FOG, SMOOTH_SHADING, TILE_BLENDING , STATUS_BARS , DRAG , PVP_TAB, ROOF, MENU_HOVERS, PLAYER_PROFILE),
         };
 
