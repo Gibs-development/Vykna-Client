@@ -10,11 +10,28 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class PanelManager {
-	private static final int PANEL_HEADER_HEIGHT = 18;
+	public static final int PANEL_HEADER_HEIGHT = 18;
 	private static final int PANEL_BACKGROUND = 0x141414;
 	private static final int PANEL_HEADER = 0x1c1c1c;
 	private static final int PANEL_BORDER = 0x2c2c2c;
 	private static final int PANEL_TEXT = 0xffffff;
+	public static final int PANEL_ID_INVENTORY = 1;
+	public static final int PANEL_ID_PRAYER = 2;
+	public static final int PANEL_ID_MAGIC = 3;
+	public static final int PANEL_ID_EQUIPMENT = 4;
+	public static final int PANEL_ID_QUEST = 5;
+	public static final int PANEL_ID_STATS = 6;
+	public static final int PANEL_ID_SKILLS = 7;
+	public static final int PANEL_ID_CLAN = 8;
+	public static final int PANEL_ID_FRIENDS = 9;
+	public static final int PANEL_ID_SETTINGS = 10;
+	public static final int PANEL_ID_EMOTES = 11;
+	public static final int PANEL_ID_MUSIC = 12;
+	public static final int PANEL_ID_NOTES = 13;
+	public static final int PANEL_ID_LOGOUT = 14;
+	public static final int PANEL_ID_MINIMAP = 20;
+	public static final int PANEL_ID_CHAT = 21;
+	public static final int PANEL_ID_TAB_BAR = 22;
 	private final List<UiPanel> panels = new ArrayList<>();
 	private int layoutWidth = -1;
 	private int layoutHeight = -1;
@@ -48,6 +65,9 @@ public class PanelManager {
 	}
 
 	public boolean handleMouse(Client client, int mouseX, int mouseY) {
+		if (dragging) {
+			return false;
+		}
 		for (int index = panels.size() - 1; index >= 0; index--) {
 			UiPanel panel = panels.get(index);
 			if (!panel.isVisible()) {
@@ -56,6 +76,23 @@ public class PanelManager {
 			Rectangle bounds = panel.getBounds();
 			if (panel.contains(mouseX, mouseY)) {
 				return panel.handleMouse(client, mouseX - bounds.x, mouseY - bounds.y);
+			}
+		}
+		return false;
+	}
+
+	public boolean handleClick(Client client, int mouseX, int mouseY, boolean mouseClicked) {
+		if (!mouseClicked || dragging) {
+			return false;
+		}
+		for (int index = panels.size() - 1; index >= 0; index--) {
+			UiPanel panel = panels.get(index);
+			if (!panel.isVisible()) {
+				continue;
+			}
+			Rectangle bounds = panel.getBounds();
+			if (panel.contains(mouseX, mouseY)) {
+				return panel.handleClick(client, mouseX - bounds.x, mouseY - bounds.y);
 			}
 		}
 		return false;
@@ -108,6 +145,37 @@ public class PanelManager {
 		saveLayoutToSettings(client);
 	}
 
+	public UiPanel getPanel(int id) {
+		for (UiPanel panel : panels) {
+			if (panel.getId() == id) {
+				return panel;
+			}
+		}
+		return null;
+	}
+
+	public boolean isPanelVisible(int id) {
+		UiPanel panel = getPanel(id);
+		return panel != null && panel.isVisible();
+	}
+
+	public void togglePanelVisibility(int id) {
+		UiPanel panel = getPanel(id);
+		if (!(panel instanceof BasePanel)) {
+			return;
+		}
+		BasePanel basePanel = (BasePanel) panel;
+		boolean visible = !basePanel.isVisible();
+		basePanel.setVisible(visible);
+		if (visible) {
+			bringToFront(panel);
+		}
+	}
+
+	public boolean isDragging() {
+		return dragging;
+	}
+
 	private UiPanel getTopmostPanelAt(int mouseX, int mouseY) {
 		for (int index = panels.size() - 1; index >= 0; index--) {
 			UiPanel panel = panels.get(index);
@@ -118,7 +186,7 @@ public class PanelManager {
 		return null;
 	}
 
-	private void bringToFront(UiPanel panel) {
+	public void bringToFront(UiPanel panel) {
 		panels.remove(panel);
 		panels.add(panel);
 	}
@@ -174,9 +242,15 @@ public class PanelManager {
 
 	private static final class PanelLayout {
 		private static final int PANEL_WIDTH = 190;
-		private static final int PANEL_HEIGHT = 260;
+		private static final int PANEL_HEIGHT = 260 + PANEL_HEADER_HEIGHT;
 		private static final int PANEL_PADDING = 8;
 		private static final int PANEL_MARGIN = 10;
+		private static final int MINIMAP_PANEL_WIDTH = 190;
+		private static final int MINIMAP_PANEL_HEIGHT = 190 + PANEL_HEADER_HEIGHT;
+		private static final int CHAT_PANEL_WIDTH = 516;
+		private static final int CHAT_PANEL_HEIGHT = 165 + PANEL_HEADER_HEIGHT;
+		private static final int TAB_BAR_PANEL_WIDTH = 76;
+		private static final int TAB_BAR_PANEL_HEIGHT = 7 * 36 + PANEL_HEADER_HEIGHT;
 
 		private static void populateRs3Panels(List<UiPanel> panels) {
 			int baseX = Math.max(0, Client.currentGameWidth - PANEL_WIDTH - PANEL_MARGIN);
@@ -198,24 +272,46 @@ public class PanelManager {
 				inventoryY -= bottomOverflow;
 			}
 
-			panels.add(new InventoryPanel(1, new Rectangle(baseX, inventoryY, PANEL_WIDTH, PANEL_HEIGHT)));
-			panels.add(new PrayerPanel(2, new Rectangle(baseX, prayerY, PANEL_WIDTH, PANEL_HEIGHT)));
-			panels.add(new MagicPanel(3, new Rectangle(baseX, magicY, PANEL_WIDTH, PANEL_HEIGHT)));
-			panels.add(new EquipmentPanel(4, new Rectangle(baseX - PANEL_WIDTH - PANEL_PADDING, inventoryY, PANEL_WIDTH, PANEL_HEIGHT)));
+			panels.add(new InventoryPanel(PANEL_ID_INVENTORY, new Rectangle(baseX, inventoryY, PANEL_WIDTH, PANEL_HEIGHT)));
+			panels.add(new PrayerPanel(PANEL_ID_PRAYER, new Rectangle(baseX, prayerY, PANEL_WIDTH, PANEL_HEIGHT)));
+			panels.add(new MagicPanel(PANEL_ID_MAGIC, new Rectangle(baseX, magicY, PANEL_WIDTH, PANEL_HEIGHT)));
+			panels.add(new EquipmentPanel(PANEL_ID_EQUIPMENT, new Rectangle(baseX - PANEL_WIDTH - PANEL_PADDING, inventoryY, PANEL_WIDTH, PANEL_HEIGHT)));
+			panels.add(new TabPanel(PANEL_ID_QUEST, 0, new Rectangle(baseX - PANEL_WIDTH - PANEL_PADDING, prayerY, PANEL_WIDTH, PANEL_HEIGHT), "Quest", false));
+			panels.add(new TabPanel(PANEL_ID_STATS, 1, new Rectangle(baseX - PANEL_WIDTH - PANEL_PADDING, magicY, PANEL_WIDTH, PANEL_HEIGHT), "Stats", false));
+			panels.add(new TabPanel(PANEL_ID_SKILLS, 2, new Rectangle(baseX - PANEL_WIDTH - PANEL_PADDING * 2 - PANEL_WIDTH, inventoryY, PANEL_WIDTH, PANEL_HEIGHT), "Skills", false));
+			panels.add(new TabPanel(PANEL_ID_CLAN, 7, new Rectangle(baseX - PANEL_WIDTH - PANEL_PADDING * 2 - PANEL_WIDTH, prayerY, PANEL_WIDTH, PANEL_HEIGHT), "Clan", false));
+			panels.add(new TabPanel(PANEL_ID_FRIENDS, 8, new Rectangle(baseX - PANEL_WIDTH - PANEL_PADDING * 2 - PANEL_WIDTH, magicY, PANEL_WIDTH, PANEL_HEIGHT), "Friends", false));
+			panels.add(new TabPanel(PANEL_ID_SETTINGS, 9, new Rectangle(baseX - PANEL_WIDTH - PANEL_PADDING * 3 - PANEL_WIDTH, inventoryY, PANEL_WIDTH, PANEL_HEIGHT), "Settings", false));
+			panels.add(new TabPanel(PANEL_ID_EMOTES, 10, new Rectangle(baseX - PANEL_WIDTH - PANEL_PADDING * 3 - PANEL_WIDTH, prayerY, PANEL_WIDTH, PANEL_HEIGHT), "Emotes", false));
+			panels.add(new TabPanel(PANEL_ID_MUSIC, 11, new Rectangle(baseX - PANEL_WIDTH - PANEL_PADDING * 3 - PANEL_WIDTH, magicY, PANEL_WIDTH, PANEL_HEIGHT), "Music", false));
+			panels.add(new TabPanel(PANEL_ID_NOTES, 12, new Rectangle(baseX - PANEL_WIDTH - PANEL_PADDING * 4 - PANEL_WIDTH, inventoryY, PANEL_WIDTH, PANEL_HEIGHT), "Notes", false));
+			panels.add(new TabPanel(PANEL_ID_LOGOUT, 13, new Rectangle(baseX - PANEL_WIDTH - PANEL_PADDING * 4 - PANEL_WIDTH, prayerY, PANEL_WIDTH, PANEL_HEIGHT), "Logout", false));
+
+			int minimapX = Math.max(PANEL_MARGIN, Client.currentGameWidth - MINIMAP_PANEL_WIDTH - PANEL_MARGIN);
+			int minimapY = PANEL_MARGIN;
+			int chatX = PANEL_MARGIN;
+			int chatY = Math.max(PANEL_MARGIN, Client.currentGameHeight - CHAT_PANEL_HEIGHT - PANEL_MARGIN);
+			int tabBarX = Math.max(PANEL_MARGIN, minimapX - TAB_BAR_PANEL_WIDTH - PANEL_PADDING);
+			int tabBarY = minimapY;
+			panels.add(new MinimapPanel(PANEL_ID_MINIMAP, new Rectangle(minimapX, minimapY, MINIMAP_PANEL_WIDTH, MINIMAP_PANEL_HEIGHT)));
+			panels.add(new ChatPanel(PANEL_ID_CHAT, new Rectangle(chatX, chatY, CHAT_PANEL_WIDTH, CHAT_PANEL_HEIGHT)));
+			panels.add(new TabBarPanel(PANEL_ID_TAB_BAR, new Rectangle(tabBarX, tabBarY, TAB_BAR_PANEL_WIDTH, TAB_BAR_PANEL_HEIGHT)));
 		}
 	}
 
-	private abstract static class BasePanel implements UiPanel {
+	static class BasePanel implements UiPanel {
 		private final int id;
 		private final Rectangle bounds;
 		private boolean visible;
 		private final boolean draggable;
+		private final String title;
 
-		private BasePanel(int id, Rectangle bounds, boolean visible, boolean draggable) {
+		private BasePanel(int id, Rectangle bounds, boolean visible, boolean draggable, String title) {
 			this.id = id;
 			this.bounds = bounds;
 			this.visible = visible;
 			this.draggable = draggable;
+			this.title = title;
 		}
 
 		@Override
@@ -239,6 +335,11 @@ public class PanelManager {
 		}
 
 		@Override
+		public String getTitle() {
+			return title;
+		}
+
+		@Override
 		public boolean contains(int mouseX, int mouseY) {
 			return bounds.contains(mouseX, mouseY);
 		}
@@ -251,16 +352,19 @@ public class PanelManager {
 		private void setVisible(boolean visible) {
 			this.visible = visible;
 		}
+
+		@Override
+		public boolean handleClick(Client client, int mouseX, int mouseY) {
+			return false;
+		}
 	}
 
-	private abstract static class TabPanel extends BasePanel {
+	static class TabPanel extends BasePanel {
 		private final int tabIndex;
-		private final String title;
 
-		private TabPanel(int id, int tabIndex, Rectangle bounds, String title) {
-			super(id, bounds, true, true);
+		private TabPanel(int id, int tabIndex, Rectangle bounds, String title, boolean visible) {
+			super(id, bounds, visible, true, title);
 			this.tabIndex = tabIndex;
-			this.title = title;
 		}
 
 		@Override
@@ -310,34 +414,25 @@ public class PanelManager {
 
 	private static final class InventoryPanel extends TabPanel {
 		private InventoryPanel(int id, Rectangle bounds) {
-			super(id, 3, bounds, "Inventory");
+			super(id, 3, bounds, "Inventory", true);
 		}
 	}
 
 	private static final class PrayerPanel extends TabPanel {
 		private PrayerPanel(int id, Rectangle bounds) {
-			super(id, 5, bounds, "Prayer");
+			super(id, 5, bounds, "Prayer", true);
 		}
 	}
 
 	private static final class MagicPanel extends TabPanel {
 		private MagicPanel(int id, Rectangle bounds) {
-			super(id, 6, bounds, "Magic");
+			super(id, 6, bounds, "Magic", true);
 		}
 	}
 
-	private static final class EquipmentPanel extends BasePanel {
+	private static final class EquipmentPanel extends TabPanel {
 		private EquipmentPanel(int id, Rectangle bounds) {
-			super(id, bounds, false, false);
-		}
-
-		@Override
-		public void draw(Client client) {
-		}
-
-		@Override
-		public boolean handleMouse(Client client, int mouseX, int mouseY) {
-			return false;
+			super(id, 4, bounds, "Equipment", false);
 		}
 	}
 
@@ -350,9 +445,9 @@ public class PanelManager {
 		DrawingArea.drawPixels(bounds.height, bounds.y, bounds.x, PANEL_BORDER, 1);
 		DrawingArea.drawPixels(bounds.height, bounds.y, bounds.x + bounds.width - 1, PANEL_BORDER, 1);
 		DrawingArea.drawPixels(1, bounds.y + PANEL_HEADER_HEIGHT, bounds.x, PANEL_BORDER, bounds.width);
-		if (panel instanceof TabPanel) {
-			TabPanel tabPanel = (TabPanel) panel;
-			client.newSmallFont.drawBasicString(tabPanel.title, bounds.x + 6, bounds.y + 13, PANEL_TEXT, 0);
+		String title = panel.getTitle();
+		if (title != null && !title.isEmpty()) {
+			client.newSmallFont.drawBasicString(title, bounds.x + 6, bounds.y + 13, PANEL_TEXT, 0);
 		}
 	}
 }

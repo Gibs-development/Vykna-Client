@@ -13,6 +13,8 @@ public interface UiPanel {
 
 	boolean draggable();
 
+	String getTitle();
+
 	boolean contains(int mouseX, int mouseY);
 
 	void setPosition(int x, int y);
