@@ -195,7 +195,7 @@ public final class Rasterizer extends DrawingArea {
                     textures[index].method357();
                 }
                 textureCount++;
-                System.out.println("Texture amount "+textureCount);
+          //      System.out.println("Texture amount "+textureCount);
             } catch (Exception ex) {
             }
         }
