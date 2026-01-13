@@ -45,10 +45,6 @@ public final class GraphicsBuffer {
     }
 
     public void drawGraphics(int x, Graphics graphics, int y) {
-        if (Client.isGpuPresenterEnabled()) {
-            Client.getGpuPresenterManager().blit(canvasRaster, canvasWidth, canvasHeight, x, y);
-            return;
-        }
         RSImageProducer.drawScaledImage(bufferedImage, graphics, x, y, canvasWidth, canvasHeight);
         //graphics.drawImage(this.bufferedImage, y, x, null);
     }

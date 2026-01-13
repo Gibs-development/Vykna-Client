@@ -76,14 +76,14 @@ public final class VyknaShell extends JFrame {
         JPanel gameWrap = new JPanel(new BorderLayout());
         gameWrap.setOpaque(true);
         gameWrap.setBackground(Color.BLACK);
-        gameWrap.add(client.getGameComponentHost(), BorderLayout.CENTER);
+        gameWrap.add((Component) client, BorderLayout.CENTER);
 
         Dimension fixed = ScreenMode.FIXED.getDimensions();
         gameWrap.setPreferredSize(fixed);
 
         gameWrap.addMouseListener(new MouseAdapter() {
             @Override public void mousePressed(MouseEvent e) {
-                client.getGameComponentHost().requestFocusInWindow();
+                ((Component) client).requestFocusInWindow();
             }
         });
 
