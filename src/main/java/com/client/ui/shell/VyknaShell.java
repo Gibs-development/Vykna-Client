@@ -10,6 +10,7 @@ import com.client.graphics.interfaces.settings.Setting;
 import com.client.graphics.interfaces.settings.SettingsInterface;
 import com.client.graphics.interfaces.dropdown.StretchedModeMenu;
 import com.client.graphics.interfaces.impl.QuestTab;
+import com.client.utilities.settings.InterfaceStyle;
 import com.client.utilities.settings.Settings;
 import com.client.utilities.settings.SettingsManager;
 
@@ -712,6 +713,7 @@ public final class VyknaShell extends JFrame {
             }));
 
             body.add(sectionHeader("Interface"));
+            addSettingDropdown(SettingsInterface.INTERFACE_STYLE, interfaceStyleIndex(settings.getInterfaceStyle()));
             addSettingToggle(SettingsInterface.OLD_GAMEFRAME, isTrue(settings.isOldGameframe()));
             addSettingDropdown(SettingsInterface.INVENTORY_MENU, inventoryMenuIndex());
             addSettingDropdown(SettingsInterface.CHAT_EFFECT, settings.getChatColor());
@@ -720,6 +722,7 @@ public final class VyknaShell extends JFrame {
             addSettingToggle(SettingsInterface.PLAYER_PROFILE, false);
             addSettingToggle(SettingsInterface.GAME_TIMERS, isTrue(settings.isGameTimers()));
             addSettingDropdown(SettingsInterface.PM_NOTIFICATION, booleanToIndex(Preferences.getPreferences().pmNotifications));
+            addRs3EditModeControls(settings);
 
             body.add(sectionHeader("Gameplay"));
             addSettingToggle(SettingsInterface.BOUNTY_HUNTER, isTrue(settings.isBountyHunter()));
@@ -782,6 +785,9 @@ public final class VyknaShell extends JFrame {
                 if (setting == SettingsInterface.STRETCHED_MODE) {
                     StretchedModeMenu.updateStretchedMode(index == 0);
                 }
+                if (setting == SettingsInterface.INTERFACE_STYLE) {
+                    refreshRs3Controls();
+                }
                 persistSettings();
             });
             body.add(row(setting.getSettingName(), combo));
@@ -836,6 +842,64 @@ public final class VyknaShell extends JFrame {
             if (drawDistance == 50) return 2;
             if (drawDistance == 60) return 3;
             return 4;
+        }
+
+        private int interfaceStyleIndex(InterfaceStyle style) {
+            return style == InterfaceStyle.RS3 ? 1 : 0;
+        }
+
+        private JToggleButton rs3EditModeToggle;
+        private JButton rs3ResetLayoutButton;
+
+        private void addRs3EditModeControls(Settings settings) {
+            rs3EditModeToggle = pillToggle(settings.isRs3EditMode());
+            rs3EditModeToggle.addActionListener(e -> {
+                if (settings.getInterfaceStyle() != InterfaceStyle.RS3) {
+                    rs3EditModeToggle.setSelected(false);
+                    syncToggleVisual(rs3EditModeToggle);
+                    return;
+                }
+                Client.getInstance().setRs3EditMode(rs3EditModeToggle.isSelected());
+                persistSettings();
+                syncToggleVisual(rs3EditModeToggle);
+            });
+
+            rs3ResetLayoutButton = new JButton("Reset");
+            rs3ResetLayoutButton.addActionListener(e -> {
+                if (settings.getInterfaceStyle() != InterfaceStyle.RS3) {
+                    return;
+                }
+                Client.getInstance().resetRs3PanelLayout();
+                persistSettings();
+            });
+
+            body.add(row("RS3 Edit Mode", rs3EditModeToggle));
+            body.add(row("Reset RS3 Layout", rs3ResetLayoutButton));
+            refreshRs3Controls();
+        }
+
+        private void refreshRs3Controls() {
+            Settings settings = Client.getUserSettings();
+            if (settings == null) {
+                return;
+            }
+            boolean rs3 = settings.getInterfaceStyle() == InterfaceStyle.RS3;
+            if (rs3EditModeToggle != null) {
+                rs3EditModeToggle.setEnabled(rs3);
+                rs3EditModeToggle.setSelected(settings.isRs3EditMode());
+                syncToggleVisual(rs3EditModeToggle);
+                if (!rs3) {
+                    Client instance = Client.getInstance();
+                    if (instance != null) {
+                        instance.setRs3EditMode(false);
+                    }
+                    rs3EditModeToggle.setSelected(false);
+                    syncToggleVisual(rs3EditModeToggle);
+                }
+            }
+            if (rs3ResetLayoutButton != null) {
+                rs3ResetLayoutButton.setEnabled(rs3);
+            }
         }
 
         private int inventoryMenuIndex() {
@@ -1307,10 +1371,6 @@ public final class VyknaShell extends JFrame {
                 g2.dispose();
             }
         }
-    }
-
-    private interface SliderValueConsumer {
-        void accept(double value);
     }
 
     private interface SliderValueConsumer {
