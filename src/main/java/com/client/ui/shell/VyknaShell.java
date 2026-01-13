@@ -1313,4 +1313,8 @@ public final class VyknaShell extends JFrame {
         void accept(double value);
     }
 
+    private interface SliderValueConsumer {
+        void accept(double value);
+    }
+
 }
