@@ -1,7 +1,9 @@
 package com.client.ui.shell;
 
 import com.client.Client;
+import com.client.RSFont;
 import com.client.Rasterizer;
+import com.client.Sprite;
 import com.client.features.gameframe.ScreenMode;
 import com.client.features.settings.Preferences;
 import com.client.graphics.interfaces.settings.Setting;
@@ -14,12 +16,17 @@ import com.client.utilities.settings.SettingsManager;
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
 import javax.swing.plaf.basic.BasicButtonUI;
+import javax.swing.plaf.basic.BasicSliderUI;
 import javax.swing.plaf.basic.BasicScrollBarUI;
 import java.awt.*;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
+import java.awt.image.ColorModel;
+import java.awt.image.MemoryImageSource;
 import java.net.URI;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 public final class VyknaShell extends JFrame {
 
@@ -61,6 +68,7 @@ public final class VyknaShell extends JFrame {
     private final IconTabButton settingsBtn;
     private final IconTabButton characterBtn;
     private final CharacterInfoPanel characterPanel;
+    private static final Map<Integer, ImageIcon> chatIconCache = new HashMap<>();
 
     // Need these to fix the “cut off” issue
 
@@ -121,26 +129,24 @@ public final class VyknaShell extends JFrame {
         ButtonGroup group = new ButtonGroup();
 
         // Tabs in your requested order
-        settingsBtn  = new IconTabButton("Settings", IconTabButton.IconType.SETTINGS);
         characterBtn = new IconTabButton("Character Information", IconTabButton.IconType.CHARACTER);
         final IconTabButton marketBtn    = new IconTabButton("Market", IconTabButton.IconType.MARKET);
         final IconTabButton linksBtn     = new IconTabButton("Links", IconTabButton.IconType.LINKS);
         final IconTabButton newsBtn      = new IconTabButton("News", IconTabButton.IconType.NEWS);
         final IconTabButton patchBtn     = new IconTabButton("Patch Notes", IconTabButton.IconType.PATCH);
         final IconTabButton savedBtn     = new IconTabButton("Saved Accounts", IconTabButton.IconType.SAVED);
+        settingsBtn  = new IconTabButton("Settings", IconTabButton.IconType.SETTINGS);
         final IconTabButton supportBtn   = new IconTabButton("Contact Support", IconTabButton.IconType.SUPPORT);
 
-        group.add(settingsBtn);
         group.add(characterBtn);
         group.add(marketBtn);
         group.add(linksBtn);
         group.add(newsBtn);
         group.add(patchBtn);
         group.add(savedBtn);
+        group.add(settingsBtn);
         group.add(supportBtn);
 
-        iconStrip.add(settingsBtn);
-        iconStrip.add(Box.createVerticalStrut(8));
         iconStrip.add(characterBtn);
         iconStrip.add(Box.createVerticalStrut(8));
         iconStrip.add(marketBtn);
@@ -152,6 +158,8 @@ public final class VyknaShell extends JFrame {
         iconStrip.add(patchBtn);
         iconStrip.add(Box.createVerticalStrut(8));
         iconStrip.add(savedBtn);
+        iconStrip.add(Box.createVerticalStrut(8));
+        iconStrip.add(settingsBtn);
         iconStrip.add(Box.createVerticalStrut(8));
         iconStrip.add(supportBtn);
         iconStrip.add(Box.createVerticalGlue());
@@ -375,12 +383,15 @@ public final class VyknaShell extends JFrame {
             JSlider slider = (JSlider) c;
             slider.setBackground(BG);
             slider.setForeground(TEXT);
+            slider.setUI(new ShellSliderUI(slider));
         } else if (c instanceof JComboBox) {
             @SuppressWarnings("rawtypes")
             JComboBox cb = (JComboBox) c;
             cb.setBackground(PANEL);
             cb.setForeground(TEXT);
             cb.setBorder(BorderFactory.createLineBorder(BORDER));
+            cb.setRenderer(new ShellComboBoxRenderer());
+            cb.setFocusable(false);
         } else if (c instanceof JList) {
             @SuppressWarnings("rawtypes")
             JList list = (JList) c;
@@ -665,7 +676,7 @@ public final class VyknaShell extends JFrame {
         p.setOpaque(true);
         p.setBackground(BG);
         p.setLayout(new BoxLayout(p, BoxLayout.Y_AXIS));
-        p.setBorder(new EmptyBorder(10, 10, 12, 10));
+        p.setBorder(new EmptyBorder(8, 10, 10, 10));
         return p;
     }
 
@@ -700,20 +711,6 @@ public final class VyknaShell extends JFrame {
                 Preferences.save();
             }));
 
-            body.add(sectionHeader("Audio"));
-            body.add(sliderRow("Music volume", Preferences.getPreferences().musicVolume, 0, 10, value -> {
-                Preferences.getPreferences().musicVolume = value;
-                Preferences.save();
-            }));
-            body.add(sliderRow("Sound effects volume", Preferences.getPreferences().soundVolume, 0, 10, value -> {
-                Preferences.getPreferences().soundVolume = value;
-                Preferences.save();
-            }));
-            body.add(sliderRow("Area sound volume", Preferences.getPreferences().areaSoundVolume, 0, 10, value -> {
-                Preferences.getPreferences().areaSoundVolume = value;
-                Preferences.save();
-            }));
-
             body.add(sectionHeader("Interface"));
             addSettingToggle(SettingsInterface.OLD_GAMEFRAME, isTrue(settings.isOldGameframe()));
             addSettingDropdown(SettingsInterface.INVENTORY_MENU, inventoryMenuIndex());
@@ -742,7 +739,7 @@ public final class VyknaShell extends JFrame {
             JPanel row = new JPanel(new BorderLayout());
             row.setOpaque(true);
             row.setBackground(BG);
-            row.setBorder(new EmptyBorder(8, 2, 8, 2));
+            row.setBorder(new EmptyBorder(5, 2, 5, 2));
 
             JLabel l = new JLabel(label);
             l.setForeground(TEXT);
@@ -757,7 +754,7 @@ public final class VyknaShell extends JFrame {
             JPanel p = new JPanel(new BorderLayout());
             p.setOpaque(true);
             p.setBackground(BG);
-            p.setBorder(new EmptyBorder(10, 0, 4, 0));
+            p.setBorder(new EmptyBorder(8, 0, 2, 0));
             JLabel label = new JLabel(title);
             label.setForeground(TEXT_DIM);
             label.setFont(label.getFont().deriveFont(Font.BOLD, 12f));
@@ -919,26 +916,111 @@ public final class VyknaShell extends JFrame {
             if (infoLines.isEmpty()) {
                 listPanel.add(textLine("No character data loaded yet."));
             } else {
+                boolean first = true;
                 for (String line : infoLines) {
                     if (line == null || line.trim().isEmpty()) {
                         continue;
                     }
-                    listPanel.add(textLine(stripTags(line)));
+                    LineData data = parseLine(line);
+                    if (!first) {
+                        listPanel.add(divider());
+                    }
+                    listPanel.add(lineRow(data));
+                    first = false;
                 }
             }
             listPanel.revalidate();
             listPanel.repaint();
         }
 
-        private JLabel textLine(String text) {
-            JLabel label = new JLabel(text);
-            label.setForeground(TEXT_DIM);
-            label.setBorder(new EmptyBorder(3, 0, 3, 0));
-            return label;
+        private JPanel lineRow(LineData data) {
+            JPanel row = new JPanel(new BorderLayout());
+            row.setOpaque(true);
+            row.setBackground(BG);
+            row.setBorder(new EmptyBorder(4, 0, 4, 0));
+
+            if (data.icon != null) {
+                JLabel iconLabel = new JLabel(data.icon);
+                iconLabel.setBorder(new EmptyBorder(0, 0, 0, 6));
+                row.add(iconLabel, BorderLayout.WEST);
+            }
+
+            JLabel label = new JLabel(data.text);
+            label.setForeground(data.color != null ? data.color : TEXT_DIM);
+            if (data.header) {
+                label.setFont(label.getFont().deriveFont(Font.BOLD, 12.5f));
+                label.setForeground(TEXT);
+            }
+            row.add(label, BorderLayout.CENTER);
+            return row;
         }
 
-        private String stripTags(String line) {
-            return line.replaceAll("@[a-zA-Z0-9]{2,3}@", "").trim();
+        private JPanel textLine(String text) {
+            return lineRow(new LineData(text, TEXT_DIM, null, false));
+        }
+
+        private LineData parseLine(String line) {
+            String normalized = RSFont.handleOldSyntax(line);
+            ImageIcon icon = extractIcon(normalized);
+            Color color = extractColor(normalized);
+            String text = normalized
+                    .replaceAll("<img=\\d+>", "")
+                    .replaceAll("<col=[^>]+>", "")
+                    .replaceAll("</col>", "")
+                    .trim();
+            boolean header = !text.contains(":") && (text.contains("Information") || icon != null);
+            return new LineData(text, color, icon, header);
+        }
+
+        private ImageIcon extractIcon(String line) {
+            int start = line.indexOf("<img=");
+            if (start == -1) {
+                return null;
+            }
+            int end = line.indexOf(">", start);
+            if (end == -1) {
+                return null;
+            }
+            String value = line.substring(start + 5, end).trim();
+            try {
+                int iconId = Integer.parseInt(value);
+                return loadChatIcon(iconId);
+            } catch (NumberFormatException ignored) {
+                return null;
+            }
+        }
+
+        private Color extractColor(String line) {
+            int start = line.indexOf("<col=");
+            if (start == -1) {
+                return null;
+            }
+            int end = line.indexOf(">", start);
+            if (end == -1) {
+                return null;
+            }
+            String value = line.substring(start + 5, end).trim();
+            try {
+                int rgb = Integer.parseInt(value, 16);
+                return new Color(rgb);
+            } catch (NumberFormatException ex) {
+                try {
+                    int rgb = Integer.parseInt(value);
+                    return new Color(rgb);
+                } catch (NumberFormatException ignored) {
+                    return null;
+                }
+            }
+        }
+
+        private JComponent divider() {
+            JPanel p = new JPanel();
+            p.setOpaque(true);
+            p.setBackground(BG);
+            p.setBorder(BorderFactory.createMatteBorder(0, 0, 1, 0, new Color(32, 34, 36)));
+            p.setPreferredSize(new Dimension(10, 6));
+            p.setMaximumSize(new Dimension(Integer.MAX_VALUE, 6));
+            return p;
         }
     }
 
@@ -1137,6 +1219,98 @@ public final class VyknaShell extends JFrame {
 
             add(body, BorderLayout.CENTER);
         }
+    }
+
+    private static ImageIcon loadChatIcon(int iconId) {
+        if (iconId < 0) {
+            return null;
+        }
+        if (RSFont.chatImages == null || iconId >= RSFont.chatImages.length) {
+            return null;
+        }
+        Sprite sprite = RSFont.chatImages[iconId];
+        if (sprite == null || sprite.myPixels == null) {
+            return null;
+        }
+        return chatIconCache.computeIfAbsent(iconId, key -> {
+            Image image = Toolkit.getDefaultToolkit().createImage(
+                    new MemoryImageSource(sprite.myWidth, sprite.myHeight, ColorModel.getRGBdefault(), sprite.myPixels, 0, sprite.myWidth)
+            );
+            return new ImageIcon(image);
+        });
+    }
+
+    private static final class LineData {
+        private final String text;
+        private final Color color;
+        private final ImageIcon icon;
+        private final boolean header;
+
+        private LineData(String text, Color color, ImageIcon icon, boolean header) {
+            this.text = text;
+            this.color = color;
+            this.icon = icon;
+            this.header = header;
+        }
+    }
+
+    private static final class ShellComboBoxRenderer extends DefaultListCellRenderer {
+        @Override
+        public Component getListCellRendererComponent(JList<?> list, Object value, int index, boolean isSelected, boolean cellHasFocus) {
+            JLabel label = (JLabel) super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
+            list.setBackground(PANEL);
+            list.setSelectionBackground(new Color(30, 32, 35));
+            list.setSelectionForeground(TEXT);
+            label.setBackground(isSelected ? new Color(30, 32, 35) : PANEL);
+            label.setForeground(TEXT);
+            label.setBorder(new EmptyBorder(2, 6, 2, 6));
+            return label;
+        }
+    }
+
+    private static final class ShellSliderUI extends BasicSliderUI {
+        private static final int TRACK_HEIGHT = 6;
+        private static final int THUMB_SIZE = 12;
+
+        ShellSliderUI(JSlider b) {
+            super(b);
+        }
+
+        @Override
+        protected Dimension getThumbSize() {
+            return new Dimension(THUMB_SIZE, THUMB_SIZE);
+        }
+
+        @Override
+        public void paintTrack(Graphics g) {
+            Graphics2D g2 = (Graphics2D) g.create();
+            try {
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                int cy = trackRect.y + (trackRect.height - TRACK_HEIGHT) / 2;
+                g2.setColor(new Color(32, 34, 36));
+                g2.fillRoundRect(trackRect.x, cy, trackRect.width, TRACK_HEIGHT, TRACK_HEIGHT, TRACK_HEIGHT);
+            } finally {
+                g2.dispose();
+            }
+        }
+
+        @Override
+        public void paintThumb(Graphics g) {
+            Graphics2D g2 = (Graphics2D) g.create();
+            try {
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                g2.setColor(ACCENT);
+                g2.fillOval(thumbRect.x, thumbRect.y, thumbRect.width, thumbRect.height);
+                g2.setColor(BORDER);
+                g2.drawOval(thumbRect.x, thumbRect.y, thumbRect.width - 1, thumbRect.height - 1);
+            } finally {
+                g2.dispose();
+            }
+        }
+    }
+
+    private interface SliderValueConsumer {
+        void accept(double value);
     }
 
     private interface SliderValueConsumer {
