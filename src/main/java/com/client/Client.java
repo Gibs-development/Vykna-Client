@@ -34,6 +34,7 @@ import com.client.sound.MidiPlayer;
 import com.client.sound.Sound;
 import com.client.sound.SoundType;
 import com.client.ui.DevConsole;
+import com.client.ui.shell.VyknaShell;
 import com.client.utilities.*;
 import com.client.utilities.settings.Settings;
 import com.client.utilities.settings.SettingsManager;
@@ -469,28 +470,35 @@ public class Client extends RSApplet {
 			int clientHeight = (int) size.getHeight();
 
 			if (!runelite) {
-				appFrame.dispose();
-				if (mode.isUndecorated()) {
-					appFrame.setUndecorated(true);
-					appFrame.setLocation(0, 0);
-					appFrame.setVisible(true);
+				if (appFrame instanceof VyknaShell) {
+					VyknaShell shell = (VyknaShell) appFrame;
+					shell.updateGameSize(new Dimension(clientWidth, clientHeight));
+					appFrame.revalidate();
+					appFrame.repaint();
 				} else {
-					if (appFrame.isUndecorated()) {
-						appFrame.setUndecorated(false);
+					appFrame.dispose();
+					if (mode.isUndecorated()) {
+						appFrame.setUndecorated(true);
+						appFrame.setLocation(0, 0);
 						appFrame.setVisible(true);
+					} else {
+						if (appFrame.isUndecorated()) {
+							appFrame.setUndecorated(false);
+							appFrame.setVisible(true);
+						}
 					}
+
+					// Add insets to get the proper window height
+					Insets insets = ClientWindow.getInset();
+					clientWidth += insets.left + insets.right;
+					clientHeight += insets.top + insets.bottom;
+
+					gameContainer.setSize(clientWidth, clientHeight);
+
+					// Subtract insets because they aren't used for other size calculations
+					clientWidth -= insets.left + insets.right;
+					clientHeight -= insets.top + insets.bottom;
 				}
-
-				// Add insets to get the proper window height
-				Insets insets = ClientWindow.getInset();
-				clientWidth += insets.left + insets.right;
-				clientHeight += insets.top + insets.bottom;
-
-				gameContainer.setSize(clientWidth, clientHeight);
-
-				// Subtract insets because they aren't used for other size calculations
-				clientWidth -= insets.left + insets.right;
-				clientHeight -= insets.top + insets.bottom;
 			} else {
 				gameContainer.setMinimumSize(minimum);
 				gameContainer.setPreferredSize(mode == ScreenMode.FIXED ? minimum : null);
@@ -508,6 +516,13 @@ public class Client extends RSApplet {
 			appFrame.setVisible(true);
 			graphics = getGraphics();
 		});
+	}
+
+	private void openShellSettingsTab() {
+		JFrame frame = ClientWindow.getFrame();
+		if (frame instanceof VyknaShell) {
+			((VyknaShell) frame).showSettingsTab();
+		}
 	}
 
 
@@ -5592,6 +5607,10 @@ public class Client extends RSApplet {
 			if (class9.contentType > 0)
 				flag8 = promptUserForInput(class9);
 			if (flag8) {
+				if (buttonPressed == 42524) {
+					openShellSettingsTab();
+					return;
+				}
 				SettingsTabWidget.settings(buttonPressed);
 				switch (buttonPressed) {
 					case 23003:

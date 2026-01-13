@@ -6,6 +6,9 @@ import com.client.StringUtils;
 import com.client.TextDrawingArea;
 import com.client.graphics.interfaces.RSInterface;
 
+import java.util.ArrayList;
+import java.util.List;
+
 public class QuestTab extends RSInterface {
 
     public static final int INTERFACE_ID = 50414; // 586 free ids past this
@@ -365,6 +368,18 @@ public class QuestTab extends RSInterface {
         tab.child(2, 47503, 1, 35);
         tab.child(3, 47504, 0, 230);
         tab.child(4, 19050, 0, 34);
+    }
+
+    public static List<String> getInfoLines() {
+        List<String> lines = new ArrayList<>();
+        for (int id = 0; id < 65; id++) {
+            int interfaceId = 51901 + id;
+            RSInterface line = RSInterface.interfaceCache != null ? RSInterface.interfaceCache[interfaceId] : null;
+            if (line != null && line.message != null && !line.message.trim().isEmpty()) {
+                lines.add(line.message);
+            }
+        }
+        return lines;
     }
 
 }
