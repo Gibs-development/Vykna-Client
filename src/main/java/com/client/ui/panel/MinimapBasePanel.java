@@ -7,7 +7,7 @@ import java.awt.Rectangle;
 
 public class MinimapBasePanel extends PanelManager.BasePanel {
 	public MinimapBasePanel(int id, Rectangle bounds) {
-		super(id, bounds, true, true, "Minimap", true, 160, 160 + PanelManager.PANEL_HEADER_HEIGHT, true);
+		super(id, bounds, true, true, "Minimap", true, 160, 160 + PanelManager.PANEL_HEADER_HEIGHT, false);
 	}
 
 	@Override
