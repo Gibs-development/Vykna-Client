@@ -12,6 +12,8 @@ public class SettingsInterface extends RSInterface {
     private static final int[] DARK_DROPDOWN_COLORS = { 0x1a1a1a, 0x2a2a2a, 0x202224, 0x2b2e32, 0x34383d };
     public static final Setting INTERFACE_STYLE = new Setting("Interface Style", 0, new InterfaceStyleMenu(), "OSRS", "RS3");
     public static final Setting RS3_EDIT_MODE = new Setting("RS3 Edit Mode", 1, new Rs3EditModeMenu(), "Off", "On");
+    public static final Setting RS3_INTERFACE_TRANSPARENCY = new Setting("Interface Transparency", 0, new InterfaceTransparencyMenu(),
+            "0%", "10%", "20%", "30%", "40%", "50%", "60%");
     public static final Setting OLD_GAMEFRAME = new Setting("Gameframe", 1, new OldGameframeMenu(), "2006", "OSRS");
     public static final Setting GAME_TIMERS = new Setting("Game Timers", 0, new GameTimersMenu(), "On", "Off");
     public static final Setting ANTI_ALIASING = new Setting("Anti-aliasing", 1, new AntiAliasingMenu(), "On", "Off");
@@ -65,7 +67,7 @@ public class SettingsInterface extends RSInterface {
         childIndex = 0;
 
         SettingsWidgetSection[] sections = {
-                new SettingsWidgetSection("RS3 Options", INTERFACE_STYLE, RS3_EDIT_MODE),
+                new SettingsWidgetSection("RS3 Options", INTERFACE_STYLE, RS3_EDIT_MODE, RS3_INTERFACE_TRANSPARENCY),
                 new SettingsWidgetSection("Interface Options", OLD_GAMEFRAME, INVENTORY_MENU, BOUNTY_HUNTER, ENTITY_TARGET, GAME_TIMERS, CHAT_EFFECT, GROUND_ITEM_NAMES, PM_NOTIFICATION),
                 new SettingsWidgetSection("Graphics Options", STRETCHED_MODE, DRAW_DISTANCE, ANTI_ALIASING, FOG, SMOOTH_SHADING, TILE_BLENDING , STATUS_BARS , DRAG , PVP_TAB, ROOF, MENU_HOVERS, PLAYER_PROFILE),
         };

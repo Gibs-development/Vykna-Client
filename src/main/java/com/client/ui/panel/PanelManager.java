@@ -52,6 +52,7 @@ public class PanelManager {
 	public static final int PANEL_ID_WORLD_MAP = 31;
 	public static final int PANEL_ID_TELEPORT = 32;
 	public static final int PANEL_ID_XP_PANEL = 33;
+	public static final int PANEL_ID_ACTION_BAR = 34;
 	private final List<UiPanel> panels = new ArrayList<>();
 	private int layoutWidth = -1;
 	private int layoutHeight = -1;
@@ -459,6 +460,8 @@ public class PanelManager {
 		private static final int TELEPORT_HEIGHT = 20;
 		private static final int XP_PANEL_WIDTH = 130;
 		private static final int XP_PANEL_HEIGHT = 28;
+		private static final int ACTION_BAR_WIDTH = 420;
+		private static final int ACTION_BAR_HEIGHT = 70;
 		private static final int CHAT_PANEL_WIDTH = 516;
 		private static final int CHAT_PANEL_HEIGHT = 165 + PANEL_HEADER_HEIGHT;
 		private static final int TAB_BAR_PANEL_WIDTH = 76;
@@ -518,6 +521,10 @@ public class PanelManager {
 			panels.add(new WorldMapPanel(PANEL_ID_WORLD_MAP, new Rectangle(orbsX + 183, orbsContentY + 143, WORLD_MAP_SIZE, WORLD_MAP_SIZE)));
 			panels.add(new TeleportPanel(PANEL_ID_TELEPORT, new Rectangle(orbsX + 123, orbsContentY + 160, TELEPORT_WIDTH, TELEPORT_HEIGHT)));
 			panels.add(new XpPanel(PANEL_ID_XP_PANEL, new Rectangle(Client.currentGameWidth - 365, PANEL_MARGIN, XP_PANEL_WIDTH, XP_PANEL_HEIGHT)));
+			panels.add(new ActionBarPanel(PANEL_ID_ACTION_BAR, new Rectangle(
+					Math.max(PANEL_MARGIN, (Client.currentGameWidth - ACTION_BAR_WIDTH) / 2),
+					Math.max(PANEL_MARGIN, Client.currentGameHeight - ACTION_BAR_HEIGHT - PANEL_MARGIN),
+					ACTION_BAR_WIDTH, ACTION_BAR_HEIGHT)));
 			panels.add(new ChatPanel(PANEL_ID_CHAT, new Rectangle(chatX, chatY, CHAT_PANEL_WIDTH, CHAT_PANEL_HEIGHT)));
 			panels.add(new TabBarPanel(PANEL_ID_TAB_BAR, new Rectangle(tabBarX, tabBarY, TAB_BAR_PANEL_WIDTH, TAB_BAR_PANEL_HEIGHT)));
 		}
@@ -903,14 +910,25 @@ public class PanelManager {
 
 	private void drawPanelBackground(Client client, UiPanel panel) {
 		int backgroundColor = PANEL_BACKGROUND;
+		int backgroundAlpha = 255;
 		Settings settings = Client.getUserSettings();
 		if (settings != null) {
 			backgroundColor = settings.getRs3PanelBackgroundColor();
+			if (client.isRs3InterfaceStyleActive()) {
+				int transparency = settings.getRs3InterfaceTransparency();
+				backgroundAlpha = 255 - (transparency * 155 / 60);
+				backgroundAlpha = clamp(backgroundAlpha, 100, 255);
+			}
 		}
 		int headerColor = adjustColor(backgroundColor, 10);
 		Rectangle bounds = panel.getBounds();
-		DrawingArea.drawPixels(bounds.height, bounds.y, bounds.x, backgroundColor, bounds.width);
-		DrawingArea.drawPixels(PANEL_HEADER_HEIGHT, bounds.y, bounds.x, headerColor, bounds.width);
+		if (backgroundAlpha < 255) {
+			DrawingArea.drawAlphaPixels(bounds.x, bounds.y, bounds.width, bounds.height, backgroundColor, backgroundAlpha);
+			DrawingArea.drawAlphaPixels(bounds.x, bounds.y, bounds.width, PANEL_HEADER_HEIGHT, headerColor, backgroundAlpha);
+		} else {
+			DrawingArea.drawPixels(bounds.height, bounds.y, bounds.x, backgroundColor, bounds.width);
+			DrawingArea.drawPixels(PANEL_HEADER_HEIGHT, bounds.y, bounds.x, headerColor, bounds.width);
+		}
 		DrawingArea.drawPixels(1, bounds.y, bounds.x, PANEL_BORDER, bounds.width);
 		DrawingArea.drawPixels(1, bounds.y + bounds.height - 1, bounds.x, PANEL_BORDER, bounds.width);
 		DrawingArea.drawPixels(bounds.height, bounds.y, bounds.x, PANEL_BORDER, 1);
