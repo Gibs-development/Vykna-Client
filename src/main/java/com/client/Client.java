@@ -946,6 +946,18 @@ public class Client extends RSApplet {
 		 */
 		newSmallFont.drawCenteredString(""+dateFormat.format(new Date().getTime()), xOffset + 459, buttonTimeY, 0xffffff, 0);
 
+		smallText.method389(true, buttonBaseX + 26, 0xffffff, "All", buttonTimeY);
+		smallText.method389(true, buttonBaseX + 86, 0xffffff, "Game", buttonLabelY);
+		smallText.method389(true, buttonBaseX + 150, 0xffffff, "Public", buttonLabelY);
+		smallText.method389(true, buttonBaseX + 212, 0xffffff, "Private", buttonLabelY);
+		smallText.method389(true, buttonBaseX + 286, 0xffffff, "Clan", buttonLabelY);
+		smallText.method389(true, buttonBaseX + 349, 0xffffff, "Trade", buttonLabelY);
+		smallText.method382(textColor[gameMode], buttonBaseX + 98, text[gameMode], buttonStatusY, true);
+		smallText.method382(textColor[publicChatMode], buttonBaseX + 164, text[publicChatMode], buttonStatusY, true);
+		smallText.method382(textColor[privateChatMode], buttonBaseX + 230, text[privateChatMode], buttonStatusY, true);
+		smallText.method382(textColor[clanChatMode], buttonBaseX + 296, text[clanChatMode], buttonStatusY, true);
+		smallText.method382(textColor[tradeMode], buttonBaseX + 362, text[tradeMode], buttonStatusY, true);
+	}
 
 		smallText.method389(true, buttonBaseX + 26, 0xffffff, "All", buttonTimeY);
 		smallText.method389(true, buttonBaseX + 86, 0xffffff, "Game", buttonLabelY);
@@ -1081,17 +1093,6 @@ public class Client extends RSApplet {
 			} else {
 				drawChannelBar(xOffset, yOffset);
 			}
-			if (isRs3InterfaceStyle() && rs3ChatOverride && inputRect != null) {
-				String label = rs3ChatInputMode ? "CHAT INPUT" : "PRESS ENTER TO CHAT";
-				int color = rs3ChatInputMode ? 0xffd24a : 0xaaaaaa;
-				int clipLeft = DrawingArea.topX;
-				int clipTop = DrawingArea.topY;
-				int clipRight = DrawingArea.bottomX;
-				int clipBottom = DrawingArea.bottomY;
-				DrawingArea.setDrawingArea(inputRect.y + inputRect.height, inputRect.x, inputRect.x + inputRect.width, inputRect.y);
-				newSmallFont.drawBasicString(label, inputRect.x + 4, inputRect.y + inputRect.height - 6, color, 0);
-				DrawingArea.setDrawingArea(clipBottom, clipLeft, clipRight, clipTop);
-			}
 			TextDrawingArea textDrawingArea = aTextDrawingArea_1271;
 			int focusTop = rs3ChatOverride ? yOffset + 1 : (currentScreenMode == ScreenMode.FIXED ? 335 : currentGameHeight - 164);
 			int focusBottom = rs3ChatOverride ? yOffset + chatAreaHeight - 30 : (currentScreenMode == ScreenMode.FIXED ? 484 : currentGameHeight - 30);
@@ -1220,7 +1221,12 @@ public class Client extends RSApplet {
 					if (chatMessages[k] != null) {
 						// System.out.println(chatMessages[k]);
 						int chatType = chatTypes[k];
-						int yPos = (70 - j77 * 14) + anInt1089 + 5;
+						int yPos;
+						if (rs3ChatOverride && messageRect != null) {
+							yPos = messageAreaHeight - 14 - j77 * 14 + anInt1089;
+						} else {
+							yPos = (70 - j77 * 14) + anInt1089 + 5;
+						}
 						String s1 = chatNames[k];
 						//byte byte0 = 0;
 
@@ -1473,6 +1479,17 @@ public class Client extends RSApplet {
 						newRegularFont.drawBasicString(inputString + "*", inputBaseX + nameOffset, inputTextY, 255, -1, false);
 					}
 
+					if (rs3ChatOverride && inputRect != null && !rs3ChatInputMode) {
+						String label = "PRESS ENTER TO CHAT";
+						int labelWidth = newSmallFont.getTextWidth(label);
+						int labelX = inputBaseX + nameOffset + 12;
+						int maxLabelX = inputRect.x + inputRect.width - labelWidth - 4;
+						labelX = Math.min(labelX, maxLabelX);
+						if (labelX > inputBaseX + nameOffset) {
+							newSmallFont.drawBasicString(label, labelX, inputTextY, 0xaaaaaa, 0);
+						}
+					}
+
 					DrawingArea.method339(inputLineY, 0x807660, lineWidth, inputBaseX + 7);
 				}
 
@@ -1561,12 +1578,14 @@ public class Client extends RSApplet {
 	public boolean processMenuClick() {
 		if (activeInterfaceType != 0)
 			return false;
-		if (isRs3InterfaceStyle() && !menuOpen) {
-			panelManager.ensureRs3Layout(this);
-			if (panelManager.isMouseOverPanel(super.getSaveClickX(), super.getSaveClickY())) {
-				return false;
+			if (isRs3InterfaceStyle() && !menuOpen) {
+				panelManager.ensureRs3Layout(this);
+				if (panelManager.isMouseOverPanel(super.getSaveClickX(), super.getSaveClickY())) {
+					if (super.clickMode3 != 2) {
+						return false;
+					}
+				}
 			}
-		}
 		int j = super.clickMode3;
 		if (spellSelected == 1 && super.getSaveClickX() >= 516 && super.getSaveClickY() >= 160 && super.getSaveClickX() <= 765
 				&& super.getSaveClickY() <= 205)
@@ -3201,7 +3220,7 @@ public class Client extends RSApplet {
 	}
 
 	public void processRs3ChatModeClick(int mouseX, int mouseY, int clickX, int clickY, boolean clicked, int baseX, int baseY, int width, int height) {
-		if (!rs3ChatOverride || rs3ChatHeaderRect == null) {
+		if (rs3ChatHeaderRect == null) {
 			processChatModeClick(mouseX, mouseY, clickX, clickY, clicked, baseX, baseY, width, height);
 			return;
 		}
@@ -10248,6 +10267,17 @@ public class Client extends RSApplet {
 			menuActionName[0] = "Cancel";
 			menuActionID[0] = 1107;
 			menuActionRow = 1;
+			if (isRs3InterfaceStyle()) {
+				panelManager.ensureRs3Layout(this);
+				if (panelManager.isMouseOverPanel(getMouseX(), getMouseY())) {
+					if (super.clickMode3 == 2) {
+						panelManager.handleRightClick(this, getMouseX(), getMouseY());
+						if (menuActionRow > 1) {
+							return;
+						}
+					}
+				}
+			}
 			if (currentScreenMode != ScreenMode.FIXED) {
 				if (fullscreenInterfaceID != -1) {
 					anInt886 = 0;
@@ -10302,7 +10332,9 @@ public class Client extends RSApplet {
 				if (isRs3InterfaceStyle()) {
 					panelManager.ensureRs3Layout(this);
 					panelManager.handleMouse(this, getMouseX(), getMouseY());
-					panelManager.handleRightClick(this, getMouseX(), getMouseY());
+					if (super.clickMode3 == 2) {
+						panelManager.handleRightClick(this, getMouseX(), getMouseY());
+					}
 				} else if (currentScreenMode == ScreenMode.FIXED) {
 				if (getMouseX() > 516 && getMouseY() > 205 && getMouseX() < 765 && getMouseY() < 466) {
 					if (invOverlayInterfaceID != 0) {
