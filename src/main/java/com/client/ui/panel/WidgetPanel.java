@@ -11,4 +11,9 @@ public abstract class WidgetPanel extends PanelManager.BasePanel {
 	public boolean drawsBackground() {
 		return false;
 	}
+
+	@Override
+	public boolean isScrollable() {
+		return false;
+	}
 }

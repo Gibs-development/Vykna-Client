@@ -47,6 +47,14 @@ public interface UiPanel {
 		return true;
 	}
 
+	default boolean isClosable() {
+		return true;
+	}
+
+	default boolean isScrollable() {
+		return true;
+	}
+
 	default void onResize(Client client) {
 	}
 }

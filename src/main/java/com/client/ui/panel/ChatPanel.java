@@ -46,4 +46,14 @@ public class ChatPanel extends PanelManager.BasePanel {
 		client.updateChatScroll(absoluteX, absoluteY, baseX, baseY, bounds.width, bounds.height - PanelManager.PANEL_HEADER_HEIGHT);
 		return true;
 	}
+
+	@Override
+	public boolean isClosable() {
+		return false;
+	}
+
+	@Override
+	public boolean isScrollable() {
+		return false;
+	}
 }

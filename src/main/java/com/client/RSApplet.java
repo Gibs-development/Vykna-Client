@@ -486,6 +486,32 @@ public class RSApplet extends Applet implements Runnable, MouseListener, MouseMo
 		if (keyevent.isShiftDown()) {
 			Client.shiftDown = true;
 		}
+		if (Client.instance != null && Client.instance.isRs3InterfaceStyleActive()) {
+			if (i == KeyEvent.VK_ESCAPE && Client.instance.isRs3ChatInputMode()) {
+				Client.inputString = "";
+				Client.instance.setRs3ChatInputMode(false);
+				Client.inputTaken = true;
+				return;
+			}
+			if (i == KeyEvent.VK_ENTER) {
+				if (Client.instance.isRs3ChatInputMode()) {
+					if (Client.inputString.length() == 0) {
+						Client.instance.setRs3ChatInputMode(false);
+						Client.inputTaken = true;
+						return;
+					}
+				} else if (Client.instance.canToggleRs3ChatInput()) {
+					Client.instance.setRs3ChatInputMode(true);
+					Client.inputTaken = true;
+					return;
+				}
+			}
+			if (i == KeyEvent.VK_L && !Client.instance.isRs3ChatInputMode()) {
+				Client.instance.setRs3EditMode(!Client.instance.isRs3EditModeActive());
+				Client.inputTaken = true;
+				return;
+			}
+		}
 		if (i == KeyEvent.VK_SPACE) {
 			if (Client.backDialogID == 979 || Client.backDialogID == 968 || Client.backDialogID == 973
 					|| Client.backDialogID == 986 || Client.backDialogID == 306 || Client.backDialogID == 4887

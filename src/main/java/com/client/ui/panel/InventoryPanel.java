@@ -10,7 +10,7 @@ import java.awt.Rectangle;
 public class InventoryPanel extends PanelManager.TabPanel {
 	private static final int INVENTORY_CONTAINER_ID = 3214;
 	private static final int SLOT_SIZE = 32;
-	private static final int CONTENT_PADDING = 6;
+	private static final int CONTENT_PADDING = 4;
 	private static final int MIN_COLUMNS = 2;
 	private static final int MAX_COLUMNS = 8;
 
@@ -46,8 +46,8 @@ public class InventoryPanel extends PanelManager.TabPanel {
 		int contentWidth = Math.max(1, width - CONTENT_PADDING * 2);
 		int columns = Math.max(MIN_COLUMNS, Math.min(MAX_COLUMNS, (contentWidth + padX) / (SLOT_SIZE + padX)));
 		int rows = (int) Math.ceil(28D / columns);
-		int neededHeight = rows * (SLOT_SIZE + padY) + CONTENT_PADDING * 2 + PanelManager.PANEL_HEADER_HEIGHT;
-		int neededWidth = columns * (SLOT_SIZE + padX) + CONTENT_PADDING * 2;
+		int neededHeight = rows * SLOT_SIZE + Math.max(0, rows - 1) * padY + CONTENT_PADDING * 2 + PanelManager.PANEL_HEADER_HEIGHT;
+		int neededWidth = columns * SLOT_SIZE + Math.max(0, columns - 1) * padX + CONTENT_PADDING * 2;
 		return new Dimension(Math.max(width, neededWidth), Math.max(height, neededHeight));
 	}
 
@@ -62,10 +62,8 @@ public class InventoryPanel extends PanelManager.TabPanel {
 		int contentWidth = Math.max(1, bounds.width - CONTENT_PADDING * 2);
 		int columns = Math.max(MIN_COLUMNS, Math.min(MAX_COLUMNS, (contentWidth + padX) / (SLOT_SIZE + padX)));
 		int rows = (int) Math.ceil(28D / columns);
-		int requiredHeight = rows * (SLOT_SIZE + padY) + CONTENT_PADDING * 2 + PanelManager.PANEL_HEADER_HEIGHT;
-		if (bounds.height < requiredHeight) {
-			bounds.height = requiredHeight;
-		}
+		int requiredHeight = rows * SLOT_SIZE + Math.max(0, rows - 1) * padY + CONTENT_PADDING * 2 + PanelManager.PANEL_HEADER_HEIGHT;
+		bounds.height = Math.max(bounds.height, requiredHeight);
 		if (columns == cachedColumns && rows == cachedRows) {
 			return;
 		}
@@ -107,6 +105,11 @@ public class InventoryPanel extends PanelManager.TabPanel {
 				DrawingArea.drawPixels(SLOT_SIZE, y, x, gridColor, SLOT_SIZE);
 			}
 		}
+	}
+
+	@Override
+	public boolean isScrollable() {
+		return false;
 	}
 
 	public static void resetInventoryContainer() {

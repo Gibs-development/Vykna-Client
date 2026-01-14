@@ -6,9 +6,12 @@ import com.client.graphics.interfaces.RSInterface;
 import com.client.utilities.settings.Settings;
 
 import java.awt.Dimension;
+import java.awt.Point;
 import java.awt.Rectangle;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 public class PanelManager {
 	public static final int PANEL_HEADER_HEIGHT = 18;
@@ -77,7 +80,7 @@ public class PanelManager {
 			if (panel.isVisible()) {
 				if (panel.drawsBackground()) {
 					drawPanelBackground(client, panel);
-					if (editMode) {
+					if (editMode && panel.isClosable()) {
 						drawCloseButton(client, panel);
 					}
 				}
@@ -139,7 +142,7 @@ public class PanelManager {
 
 		if (mouseDown && !mouseDownLastFrame) {
 			UiPanel hit = getTopmostPanelAt(mouseX, mouseY);
-			if (hit != null && hit.drawsBackground() && isOnCloseButton(hit, mouseX, mouseY)) {
+			if (hit != null && hit.drawsBackground() && hit.isClosable() && isOnCloseButton(hit, mouseX, mouseY)) {
 				if (hit instanceof BasePanel) {
 					((BasePanel) hit).setVisible(false);
 				}
@@ -210,6 +213,9 @@ public class PanelManager {
 	public boolean handleMouseWheel(Client client, int mouseX, int mouseY, int rotation) {
 		UiPanel hit = getTopmostPanelAt(mouseX, mouseY);
 		if (!(hit instanceof TabPanel)) {
+			return false;
+		}
+		if (!hit.isScrollable()) {
 			return false;
 		}
 		TabPanel tabPanel = (TabPanel) hit;
@@ -305,7 +311,8 @@ public class PanelManager {
 			int clampedY = clamp(layout.getY(), 0, Client.currentGameHeight - panel.getBounds().height);
 			panel.setPosition(clampedX, clampedY);
 			if (panel instanceof BasePanel) {
-				((BasePanel) panel).setVisible(layout.isVisible());
+				boolean visible = layout.isVisible() || !panel.isClosable();
+				((BasePanel) panel).setVisible(visible);
 			}
 		}
 	}
@@ -323,10 +330,11 @@ public class PanelManager {
 	}
 
 	private void drawSelectionOutline(Rectangle bounds) {
-		DrawingArea.drawPixels(1, bounds.y, bounds.x, 0x00ffff, bounds.width);
-		DrawingArea.drawPixels(1, bounds.y + bounds.height - 1, bounds.x, 0x00ffff, bounds.width);
-		DrawingArea.drawPixels(bounds.height, bounds.y, bounds.x, 0x00ffff, 1);
-		DrawingArea.drawPixels(bounds.height, bounds.y, bounds.x + bounds.width - 1, 0x00ffff, 1);
+		int highlight = 0xffd24a;
+		DrawingArea.drawPixels(1, bounds.y, bounds.x, highlight, bounds.width);
+		DrawingArea.drawPixels(1, bounds.y + bounds.height - 1, bounds.x, highlight, bounds.width);
+		DrawingArea.drawPixels(bounds.height, bounds.y, bounds.x, highlight, 1);
+		DrawingArea.drawPixels(bounds.height, bounds.y, bounds.x + bounds.width - 1, highlight, 1);
 	}
 
 	private static int clamp(int value, int min, int max) {
@@ -532,6 +540,16 @@ public class PanelManager {
 		public boolean drawsBackground() {
 			return true;
 		}
+
+		@Override
+		public boolean isClosable() {
+			return true;
+		}
+
+		@Override
+		public boolean isScrollable() {
+			return true;
+		}
 	}
 
 	static class TabPanel extends BasePanel {
@@ -604,6 +622,9 @@ public class PanelManager {
 		}
 
 		private boolean needsScroll(RSInterface rsInterface, Rectangle bounds) {
+			if (!isScrollable()) {
+				return false;
+			}
 			return getContentHeight(rsInterface) > bounds.height - PANEL_HEADER_HEIGHT;
 		}
 
@@ -648,8 +669,114 @@ public class PanelManager {
 	}
 
 	private static final class EquipmentPanel extends TabPanel {
+		private static final int EXPANDED_MIN_WIDTH = 240;
+		private static final int EXPANDED_MIN_HEIGHT = 300;
+		private static final int EQUIPMENT_INTERFACE_ID = 1644;
+		private static final int CHARACTER_CHILD_ID = 15125;
+		private static final int[] SLOT_CHILD_IDS = {
+				1645, 1646, 1647, 1648, 1649, 1650, 1651, 1652, 1653, 1654, 1655
+		};
+		private boolean expandedMode;
+		private final Map<Integer, Point> originalPositions = new HashMap<>();
+
 		private EquipmentPanel(int id, Rectangle bounds) {
 			super(id, 4, bounds, "Equipment", false, true, 160, 200 + PANEL_HEADER_HEIGHT);
+		}
+
+		@Override
+		public void draw(Client client) {
+			updateLayout(client);
+			super.draw(client);
+		}
+
+		@Override
+		public boolean handleMouse(Client client, int mouseX, int mouseY) {
+			updateLayout(client);
+			return super.handleMouse(client, mouseX, mouseY);
+		}
+
+		private void updateLayout(Client client) {
+			if (!client.isRs3InterfaceStyleActive()) {
+				restoreLayout();
+				return;
+			}
+			int interfaceId = Client.tabInterfaceIDs[getTabIndex()];
+			if (interfaceId != EQUIPMENT_INTERFACE_ID) {
+				restoreLayout();
+				return;
+			}
+			Rectangle bounds = getBounds();
+			boolean shouldExpand = bounds.width >= EXPANDED_MIN_WIDTH && bounds.height >= EXPANDED_MIN_HEIGHT;
+			if (shouldExpand == expandedMode) {
+				return;
+			}
+			if (shouldExpand) {
+				applyExpandedLayout(bounds);
+			} else {
+				restoreLayout();
+			}
+			expandedMode = shouldExpand;
+		}
+
+		private void applyExpandedLayout(Rectangle bounds) {
+			RSInterface rsInterface = RSInterface.interfaceCache[EQUIPMENT_INTERFACE_ID];
+			if (rsInterface == null || rsInterface.children == null) {
+				return;
+			}
+			cacheOriginalPositions(rsInterface);
+			int centerX = bounds.x + bounds.width / 2;
+			int centerY = bounds.y + PANEL_HEADER_HEIGHT + (bounds.height - PANEL_HEADER_HEIGHT) / 2;
+			setChildPosition(rsInterface, CHARACTER_CHILD_ID, centerX - 32, centerY - 70);
+			setChildPosition(rsInterface, 1645, centerX - 18, centerY - 132);
+			setChildPosition(rsInterface, 1646, centerX - 86, centerY - 90);
+			setChildPosition(rsInterface, 1647, centerX - 18, centerY - 90);
+			setChildPosition(rsInterface, 1648, centerX - 126, centerY - 20);
+			setChildPosition(rsInterface, 1649, centerX - 18, centerY - 20);
+			setChildPosition(rsInterface, 1650, centerX + 90, centerY - 20);
+			setChildPosition(rsInterface, 1651, centerX - 18, centerY + 50);
+			setChildPosition(rsInterface, 1652, centerX - 126, centerY + 50);
+			setChildPosition(rsInterface, 1653, centerX - 18, centerY + 110);
+			setChildPosition(rsInterface, 1654, centerX + 90, centerY + 110);
+			setChildPosition(rsInterface, 1655, centerX + 90, centerY - 90);
+		}
+
+		private void restoreLayout() {
+			RSInterface rsInterface = RSInterface.interfaceCache[EQUIPMENT_INTERFACE_ID];
+			if (rsInterface == null || rsInterface.children == null || originalPositions.isEmpty()) {
+				return;
+			}
+			for (Map.Entry<Integer, Point> entry : originalPositions.entrySet()) {
+				setChildPosition(rsInterface, entry.getKey(), entry.getValue().x, entry.getValue().y);
+			}
+		}
+
+		private void cacheOriginalPositions(RSInterface rsInterface) {
+			if (!originalPositions.isEmpty()) {
+				return;
+			}
+			cacheChildPosition(rsInterface, CHARACTER_CHILD_ID);
+			for (int childId : SLOT_CHILD_IDS) {
+				cacheChildPosition(rsInterface, childId);
+			}
+		}
+
+		private void cacheChildPosition(RSInterface rsInterface, int childId) {
+			for (int index = 0; index < rsInterface.children.length; index++) {
+				if (rsInterface.children[index] == childId) {
+					originalPositions.put(childId, new Point(rsInterface.childX[index], rsInterface.childY[index]));
+					return;
+				}
+			}
+		}
+
+		private void setChildPosition(RSInterface rsInterface, int childId, int x, int y) {
+			for (int index = 0; index < rsInterface.children.length; index++) {
+				if (rsInterface.children[index] == childId) {
+					rsInterface.childX[index] = x;
+					rsInterface.childY[index] = y;
+					return;
+				}
+			}
 		}
 	}
 

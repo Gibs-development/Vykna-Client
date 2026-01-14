@@ -97,10 +97,13 @@ public class Client extends RSApplet {
 	private int rs3MinimapHeight;
 	private int rs3MinimapContentX;
 	private int rs3MinimapContentY;
-	private int rs3MinimapContentSize;
+	private int rs3MinimapContentWidth;
+	private int rs3MinimapContentHeight;
 	private int[] rs3MinimapMaskOffsets;
 	private int[] rs3MinimapMaskWidths;
-	private int rs3MinimapMaskSize;
+	private int rs3MinimapMaskWidth;
+	private int rs3MinimapMaskHeight;
+	private boolean rs3ChatInputMode;
 	private static final int RS3_MINIMAP_MAX_SIZE = 512;
 	private boolean rs3XpOverride;
 	private int rs3XpBaseX;
@@ -259,6 +262,26 @@ public class Client extends RSApplet {
 		return getUserSettings() != null && getUserSettings().getInterfaceStyle() == InterfaceStyle.RS3;
 	}
 
+	public boolean isRs3InterfaceStyleActive() {
+		return isRs3InterfaceStyle();
+	}
+
+	public boolean isRs3ChatInputMode() {
+		return rs3ChatInputMode;
+	}
+
+	public void setRs3ChatInputMode(boolean enabled) {
+		rs3ChatInputMode = enabled && isRs3InterfaceStyle();
+	}
+
+	public void toggleRs3ChatInputMode() {
+		setRs3ChatInputMode(!rs3ChatInputMode);
+	}
+
+	public boolean canToggleRs3ChatInput() {
+		return isRs3InterfaceStyle() && inputDialogState == 0 && !messagePromptRaised;
+	}
+
 	private void drawRs3Panels() {
 		panelManager.ensureRs3Layout(this);
 		rs3XpOverride = false;
@@ -308,8 +331,23 @@ public class Client extends RSApplet {
 		}
 	}
 
+	private void applyInterfaceStyleOnStartup() {
+		if (getUserSettings() == null) {
+			return;
+		}
+		if (getUserSettings().getInterfaceStyle() == InterfaceStyle.RS3) {
+			enforceRs3ScreenMode();
+		} else {
+			resetRs3InventoryLayout();
+		}
+	}
+
 	private boolean isRs3EditMode() {
 		return isRs3InterfaceStyle() && getUserSettings() != null && getUserSettings().isRs3EditMode();
+	}
+
+	public boolean isRs3EditModeActive() {
+		return isRs3EditMode();
 	}
 
 	public void setRs3EditMode(boolean enabled) {
@@ -947,6 +985,11 @@ public class Client extends RSApplet {
 			}
 			drawChannelButtons(xOffset, yOffset);
 			drawChannelBar(xOffset, yOffset);
+			if (isRs3InterfaceStyle() && rs3ChatOverride) {
+				String label = rs3ChatInputMode ? "CHAT INPUT" : "PRESS ENTER TO CHAT";
+				int color = rs3ChatInputMode ? 0xffd24a : 0xaaaaaa;
+				newSmallFont.drawBasicString(label, xOffset + 10, yOffset + chatAreaHeight - 6, color, 0);
+			}
 			TextDrawingArea textDrawingArea = aTextDrawingArea_1271;
 			int focusTop = rs3ChatOverride ? yOffset + 1 : (currentScreenMode == ScreenMode.FIXED ? 335 : currentGameHeight - 164);
 			int focusBottom = rs3ChatOverride ? yOffset + chatAreaHeight - 30 : (currentScreenMode == ScreenMode.FIXED ? 484 : currentGameHeight - 30);
@@ -8260,6 +8303,9 @@ public class Client extends RSApplet {
 						}
 					}
 				} else {
+					if (isRs3InterfaceStyle() && !rs3ChatInputMode) {
+						continue;
+					}
 					if (j >= 32 && j <= 122 && inputString.length() < 80) {
 						inputString += (char) j;
 						inputTaken = true;
@@ -8770,6 +8816,9 @@ public class Client extends RSApplet {
 							}
 						}
 						inputString = "";
+						if (isRs3InterfaceStyle()) {
+							rs3ChatInputMode = false;
+						}
 						inputTaken = true;
 					}
 				}
@@ -11793,6 +11842,7 @@ public class Client extends RSApplet {
 
 			//Censor.loadConfig(streamLoader_4);
 			setConfigButtonsAtStartup();
+			applyInterfaceStyleOnStartup();
 			//mouseDetection = new MouseDetection(this);
 
 			try {
@@ -11892,11 +11942,19 @@ public class Client extends RSApplet {
 	}
 
 	private boolean mouseMapPosition(int mouseX, int mouseY, int panelBaseX, int panelBaseY, int width, int height) {
-		if (isRs3InterfaceStyle()) {
-			return true;
+		Rectangle minimapBounds = getRs3MinimapBounds(panelBaseX, panelBaseY, width, height);
+		if (minimapBounds == null) {
+			return false;
 		}
 		Rectangle compassBounds = getRs3CompassBounds(panelBaseX, panelBaseY, width, height);
-		return compassBounds == null || !compassBounds.contains(mouseX, mouseY);
+		if (compassBounds != null && compassBounds.contains(mouseX, mouseY)) {
+			return false;
+		}
+		return minimapBounds.contains(mouseX, mouseY);
+	}
+
+	public Rectangle getRs3MinimapContentBounds(int baseX, int baseY, int width, int height) {
+		return getRs3MinimapBounds(baseX, baseY, width, height);
 	}
 
 	private Rectangle getRs3MinimapBounds(int baseX, int baseY, int width, int height) {
@@ -11904,11 +11962,11 @@ public class Client extends RSApplet {
 			return null;
 		}
 		int padding = 6;
-		int size = Math.min(RS3_MINIMAP_MAX_SIZE, Math.min(width, height) - padding * 2);
-		size = Math.max(120, size);
-		int x = baseX + (width - size) / 2;
-		int y = baseY + (height - size) / 2;
-		return new Rectangle(x, y, size, size);
+		int contentWidth = Math.min(RS3_MINIMAP_MAX_SIZE, Math.max(120, width - padding * 2));
+		int contentHeight = Math.min(RS3_MINIMAP_MAX_SIZE, Math.max(120, height - padding * 2));
+		int x = baseX + (width - contentWidth) / 2;
+		int y = baseY + (height - contentHeight) / 2;
+		return new Rectangle(x, y, contentWidth, contentHeight);
 	}
 
 	private Rectangle getRs3CompassBounds(int baseX, int baseY, int width, int height) {
@@ -11920,21 +11978,32 @@ public class Client extends RSApplet {
 		return new Rectangle(minimapBounds.x + 4, minimapBounds.y + 4, compassSize, compassSize);
 	}
 
-	private void ensureRs3MinimapMask(int size) {
-		if (rs3MinimapMaskSize == size && rs3MinimapMaskOffsets != null && rs3MinimapMaskWidths != null) {
+	private void ensureRs3MinimapMask(int width, int height) {
+		if (rs3MinimapMaskWidth == width && rs3MinimapMaskHeight == height
+				&& rs3MinimapMaskOffsets != null && rs3MinimapMaskWidths != null) {
 			return;
 		}
-		rs3MinimapMaskSize = size;
-		rs3MinimapMaskOffsets = new int[size];
-		rs3MinimapMaskWidths = new int[size];
-		for (int index = 0; index < size; index++) {
-			rs3MinimapMaskOffsets[index] = 0;
-			rs3MinimapMaskWidths[index] = size;
+		rs3MinimapMaskWidth = width;
+		rs3MinimapMaskHeight = height;
+		rs3MinimapMaskOffsets = new int[height];
+		rs3MinimapMaskWidths = new int[height];
+		double rx = width / 2.0;
+		double ry = height / 2.0;
+		double centerX = rx;
+		double centerY = ry;
+		for (int y = 0; y < height; y++) {
+			double dy = (y - centerY) / ry;
+			double span = dy * dy <= 1.0 ? Math.sqrt(1.0 - dy * dy) * rx : 0.0;
+			int half = (int) Math.floor(span);
+			int offset = (int) Math.round(centerX - half);
+			int widthSpan = half * 2;
+			rs3MinimapMaskOffsets[y] = Math.max(0, offset);
+			rs3MinimapMaskWidths[y] = Math.min(width, widthSpan);
 		}
 	}
 
 	private void drawRs3Compass() {
-		if (rs3MinimapContentSize <= 0) {
+		if (rs3MinimapContentWidth <= 0 || rs3MinimapContentHeight <= 0) {
 			return;
 		}
 		int compassX = rs3MinimapContentX + 6;
@@ -12756,19 +12825,19 @@ public class Client extends RSApplet {
 		if (minimapBounds == null) {
 			return;
 		}
-		int radius = minimapBounds.width / 2;
-		int centerX = minimapBounds.x + radius;
-		int centerY = minimapBounds.y + radius;
-		int i = mouseX - centerX;
-		int j = mouseY - centerY;
-		if (inCircle(0, 0, i, j, radius) && mouseMapPosition(mouseX, mouseY, panelBaseX, panelBaseY, width, height) && !runHover) {
+		int radius = Math.min(minimapBounds.width, minimapBounds.height) / 2;
+		int centerX = minimapBounds.x + minimapBounds.width / 2;
+		int centerY = minimapBounds.y + minimapBounds.height / 2;
+		int localX = mouseX - centerX;
+		int localY = mouseY - centerY;
+		if (inCircle(0, 0, localX, localY, radius) && mouseMapPosition(mouseX, mouseY, panelBaseX, panelBaseY, width, height) && !runHover) {
 			int k = viewRotation + minimapRotation & 0x7ff;
 			int i1 = Rasterizer.anIntArray1470[k];
 			int j1 = Rasterizer.anIntArray1471[k];
 			i1 = i1 * (minimapZoom + 256) >> 8;
 			j1 = j1 * (minimapZoom + 256) >> 8;
-			int k1 = j * i1 + i * j1 >> 11;
-			int l1 = j * j1 - i * i1 >> 11;
+			int k1 = localY * i1 + localX * j1 >> 11;
+			int l1 = localY * j1 - localX * i1 >> 11;
 			int i2 = myPlayer.x + k1 >> 7;
 			int j2 = myPlayer.y - l1 >> 7;
 			if (myPlayer.isAdminRights() && controlIsDown) {
@@ -12776,8 +12845,8 @@ public class Client extends RSApplet {
 			} else {
 				boolean flag1 = doWalkTo(1, myPlayer.pathX[0], myPlayer.pathY[0], 0, 0, 0, 0, 0, j2, true, i2);
 				if (flag1) {
-					stream.writeUnsignedByte(i);
-					stream.writeUnsignedByte(j);
+					stream.writeUnsignedByte(localX);
+					stream.writeUnsignedByte(localY);
 					stream.writeWord(viewRotation);
 					stream.writeUnsignedByte(57);
 					stream.writeUnsignedByte(minimapRotation);
@@ -15326,8 +15395,9 @@ public class Client extends RSApplet {
 			if (rs3MinimapBounds != null) {
 				rs3MinimapContentX = rs3MinimapBounds.x;
 				rs3MinimapContentY = rs3MinimapBounds.y;
-				rs3MinimapContentSize = rs3MinimapBounds.width;
-				ensureRs3MinimapMask(rs3MinimapContentSize);
+				rs3MinimapContentWidth = rs3MinimapBounds.width;
+				rs3MinimapContentHeight = rs3MinimapBounds.height;
+				ensureRs3MinimapMask(rs3MinimapContentWidth, rs3MinimapContentHeight);
 			}
 		}
 		if (currentScreenMode == ScreenMode.FIXED)
@@ -15336,7 +15406,7 @@ public class Client extends RSApplet {
 		/** Black minimap **/
 		if (minimapState == 2) {
 			if (rs3MinimapOverride && rs3MinimapBounds != null) {
-				DrawingArea.drawPixels(rs3MinimapContentSize, rs3MinimapContentY, rs3MinimapContentX, 0x0d0d0d, rs3MinimapContentSize);
+				DrawingArea.drawPixels(rs3MinimapContentHeight, rs3MinimapContentY, rs3MinimapContentX, 0x0d0d0d, rs3MinimapContentWidth);
 				if (!isRs3InterfaceStyle()) {
 					drawRs3Compass();
 				}
@@ -15375,13 +15445,14 @@ public class Client extends RSApplet {
 			int l2 = 464 - myPlayer.y / 32;
 
 			if (rs3MinimapOverride && rs3MinimapBounds != null) {
-				DrawingArea.drawPixels(rs3MinimapContentSize, rs3MinimapContentY, rs3MinimapContentX, 0x0d0d0d, rs3MinimapContentSize);
+				DrawingArea.drawPixels(rs3MinimapContentHeight, rs3MinimapContentY, rs3MinimapContentX, 0x0d0d0d, rs3MinimapContentWidth);
 			}
 
 			if (rs3MinimapOverride && rs3MinimapBounds != null) {
-				int size = rs3MinimapContentSize;
-				minimapImage.method352(size, i, rs3MinimapMaskWidths, 256 + minimapZoom, rs3MinimapMaskOffsets, l2,
-						rs3MinimapContentY, rs3MinimapContentX, size, j);
+				int height = rs3MinimapContentHeight;
+				int width = rs3MinimapContentWidth;
+				minimapImage.method352(height, i, rs3MinimapMaskWidths, 256 + minimapZoom, rs3MinimapMaskOffsets, l2,
+						rs3MinimapContentY, rs3MinimapContentX, width, j);
 			} else {
 				int positionX = (fixed ? baseY + 9 : baseY + 7);
 				int positionY = (fixed ? baseX + 51 : baseX + 23);
@@ -15525,8 +15596,8 @@ public class Client extends RSApplet {
 				markMinimap(mapFlag, j2, l4);
 			}
 			if (rs3MinimapOverride && rs3MinimapBounds != null) {
-				int centerX = rs3MinimapContentX + rs3MinimapContentSize / 2;
-				int centerY = rs3MinimapContentY + rs3MinimapContentSize / 2;
+				int centerX = rs3MinimapContentX + rs3MinimapContentWidth / 2;
+				int centerY = rs3MinimapContentY + rs3MinimapContentHeight / 2;
 				DrawingArea.drawPixels(3, centerY, centerX, 0xffffff, 3);
 			} else {
 				DrawingArea.drawPixels(3, (fixed ? baseY + 83 : baseY + 81),
@@ -17435,9 +17506,9 @@ public class Client extends RSApplet {
 		int l1 = yPosition * j1 - xPosition * i1 >> 16;
 
 		try {
-			if (rs3MinimapOverride && rs3MinimapContentSize > 0) {
-				int centerX = rs3MinimapContentX + rs3MinimapContentSize / 2;
-				int centerY = rs3MinimapContentY + rs3MinimapContentSize / 2;
+			if (rs3MinimapOverride && rs3MinimapContentWidth > 0 && rs3MinimapContentHeight > 0) {
+				int centerX = rs3MinimapContentX + rs3MinimapContentWidth / 2;
+				int centerY = rs3MinimapContentY + rs3MinimapContentHeight / 2;
 				sprite.drawSprite(centerX + k1 - sprite.maxWidth / 2, centerY - l1 - sprite.maxHeight / 2);
 			} else if (currentScreenMode == ScreenMode.FIXED) {
 				sprite.drawSprite(((97 + k1) - sprite.maxWidth / 2) + 30, 83 - l1 - sprite.maxHeight / 2 - 4 + 5);

@@ -93,6 +93,16 @@ public class TabBarPanel extends PanelManager.BasePanel {
 		return true;
 	}
 
+	@Override
+	public boolean isClosable() {
+		return false;
+	}
+
+	@Override
+	public boolean isScrollable() {
+		return false;
+	}
+
 	private static final class TabEntry {
 		private final String label;
 		private final int tabIndex;
