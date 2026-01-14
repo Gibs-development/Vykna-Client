@@ -329,7 +329,7 @@ public class PanelManager {
 		DrawingArea.drawPixels(bounds.height, bounds.y, bounds.x + bounds.width - 1, 0x00ffff, 1);
 	}
 
-	private int clamp(int value, int min, int max) {
+	private static int clamp(int value, int min, int max) {
 		if (value < min) {
 			return min;
 		}
