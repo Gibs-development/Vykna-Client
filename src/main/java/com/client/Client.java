@@ -1185,7 +1185,7 @@ public class Client extends RSApplet {
 			} else if (dialogID != -1) {
 				drawInterface(0, xOffset + 20, RSInterface.interfaceCache[dialogID], 20 + yOffset);
 			} else {
-				int j77 = -3;
+				int j77 = rs3ChatOverride ? 0 : -3;
 				int j = 0;
 				int messageAreaHeight = getChatScrollHeight(chatAreaHeight);
 				int messageClipTop = yOffset + 7;
@@ -1462,8 +1462,9 @@ public class Client extends RSApplet {
 					newRegularFont.drawBasicString(": ", inputBaseX + nameOffset, inputTextY, 0, -1);
 					nameOffset += textDrawingArea.getTextWidth(": ");
 
+					boolean showCursor = !isFieldInFocus() && (!rs3ChatOverride || rs3ChatInputMode);
 					if (!isFieldInFocus()) {
-						newRegularFont.drawBasicString(inputString + "*", inputBaseX + nameOffset, inputTextY, 255, -1, false);
+						newRegularFont.drawBasicString(inputString + (showCursor ? "*" : ""), inputBaseX + nameOffset, inputTextY, 255, -1, false);
 					}
 
 					if (rs3ChatOverride && inputRect != null && !rs3ChatInputMode) {
@@ -3036,6 +3037,9 @@ public class Client extends RSApplet {
 	}
 
 	public void drawScrollbar(int height, int scrollPosition, int yPosition, int xPosition, int scrollMax) {
+		if (height <= 0) {
+			return;
+		}
 		scrollBar1.drawSprite(xPosition, yPosition);
 		scrollBar2.drawSprite(xPosition, (yPosition + height) - 16);
 		DrawingArea.drawPixels(height - 32, yPosition + 16, xPosition, 0x000001, 16);
@@ -3045,10 +3049,17 @@ public class Client extends RSApplet {
 		DrawingArea.drawPixels(height - 32, yPosition + 16, xPosition, 0x29241b, 10);
 		DrawingArea.drawPixels(height - 32, yPosition + 16, xPosition, 0x252019, 9);
 		DrawingArea.drawPixels(height - 32, yPosition + 16, xPosition, 0x000001, 1);
-		int k1 = ((height - 32) * height) / scrollMax;
+		int k1 = height - 32;
+		if (scrollMax > 0) {
+			k1 = ((height - 32) * height) / scrollMax;
+		}
 		if (k1 < 8)
 			k1 = 8;
-		int l1 = ((height - 32 - k1) * scrollPosition) / (scrollMax - height);
+		int l1 = 0;
+		int scrollRange = scrollMax - height;
+		if (scrollRange > 0) {
+			l1 = ((height - 32 - k1) * scrollPosition) / scrollRange;
+		}
 		DrawingArea.drawPixels(k1, yPosition + 16 + l1, xPosition, barFillColor, 16);
 		DrawingArea.method341(yPosition + 16 + l1, 0x000001, k1, xPosition);
 		DrawingArea.method341(yPosition + 16 + l1, 0x817051, k1, xPosition + 1);

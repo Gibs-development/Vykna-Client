@@ -3,6 +3,8 @@ package com.client.ui.panel;
 import com.client.Client;
 import com.client.DrawingArea;
 import com.client.graphics.interfaces.RSInterface;
+import com.client.sound.Sound;
+import com.client.sound.SoundType;
 import com.client.utilities.settings.Settings;
 
 import java.awt.Dimension;
@@ -63,6 +65,9 @@ public class PanelManager {
 	private int resizeStartWidth;
 	private int resizeStartHeight;
 	private boolean mouseDownLastFrame;
+	private Rectangle dragStartBounds;
+	private Rectangle resizeStartBounds;
+	private boolean invalidPlacement;
 
 	public void ensureRs3Layout(Client client) {
 		if (layoutWidth == Client.currentGameWidth && layoutHeight == Client.currentGameHeight && !panels.isEmpty()) {
@@ -151,13 +156,32 @@ public class PanelManager {
 	}
 
 	public void handleEditModeInput(Client client, int mouseX, int mouseY, boolean mouseDown) {
+		boolean rs3Mode = client.isRs3InterfaceStyleActive();
 		if (!mouseDown && mouseDownLastFrame && (dragging || resizing)) {
+			if (rs3Mode && activePanel != null) {
+				Rectangle target = new Rectangle(activePanel.getBounds());
+				if (!isPlacementValid(target, activePanel)) {
+					Rectangle resolved = resolveCollision(target, activePanel);
+					if (resolved != null) {
+						activePanel.setPosition(resolved.x, resolved.y);
+					} else {
+						Rectangle fallback = dragStartBounds != null ? dragStartBounds : resizeStartBounds;
+						if (fallback != null) {
+							activePanel.setPosition(fallback.x, fallback.y);
+							activePanel.setSize(fallback.width, fallback.height);
+						}
+						Sound.getSound().playSound(1042, SoundType.SOUND, 0);
+					}
+				}
+			}
 			dragging = false;
 			resizing = false;
+			invalidPlacement = false;
 			saveLayoutToSettings(client);
 		}
 
 		if (mouseDown && !mouseDownLastFrame) {
+			invalidPlacement = false;
 			UiPanel hit = getTopmostPanelAt(mouseX, mouseY);
 			if (hit != null && hit.drawsBackground() && hit.isClosable() && isOnCloseButton(hit, mouseX, mouseY)) {
 				if (hit instanceof BasePanel) {
@@ -172,6 +196,7 @@ public class PanelManager {
 				activePanel = hit;
 				bringToFront(hit);
 				Rectangle bounds = hit.getBounds();
+				resizeStartBounds = new Rectangle(bounds);
 				resizeStartX = mouseX;
 				resizeStartY = mouseY;
 				resizeStartWidth = bounds.width;
@@ -181,6 +206,7 @@ public class PanelManager {
 				activePanel = hit;
 				bringToFront(hit);
 				Rectangle bounds = hit.getBounds();
+				dragStartBounds = new Rectangle(bounds);
 				dragOffsetX = mouseX - bounds.x;
 				dragOffsetY = mouseY - bounds.y;
 				dragging = true;
@@ -196,6 +222,7 @@ public class PanelManager {
 			newX = clamp(newX, 0, Client.currentGameWidth - bounds.width);
 			newY = clamp(newY, 0, Client.currentGameHeight - bounds.height);
 			activePanel.setPosition(newX, newY);
+			invalidPlacement = rs3Mode && !isPlacementValid(activePanel.getBounds(), activePanel);
 		}
 
 		if (mouseDown && resizing && activePanel != null) {
@@ -222,6 +249,7 @@ public class PanelManager {
 			newHeight = Math.min(newHeight, maxHeight);
 			activePanel.setSize(newWidth, newHeight);
 			activePanel.onResize(client);
+			invalidPlacement = rs3Mode && !isPlacementValid(activePanel.getBounds(), activePanel);
 		}
 
 		mouseDownLastFrame = mouseDown;
@@ -347,11 +375,60 @@ public class PanelManager {
 	}
 
 	private void drawSelectionOutline(Rectangle bounds) {
-		int highlight = 0xffd24a;
+		int highlight = invalidPlacement ? 0xd1362b : 0xffd24a;
 		DrawingArea.drawPixels(1, bounds.y, bounds.x, highlight, bounds.width);
 		DrawingArea.drawPixels(1, bounds.y + bounds.height - 1, bounds.x, highlight, bounds.width);
 		DrawingArea.drawPixels(bounds.height, bounds.y, bounds.x, highlight, 1);
 		DrawingArea.drawPixels(bounds.height, bounds.y, bounds.x + bounds.width - 1, highlight, 1);
+	}
+
+	private boolean isPlacementValid(Rectangle bounds, UiPanel ignore) {
+		if (bounds.x < 0 || bounds.y < 0) {
+			return false;
+		}
+		if (bounds.x + bounds.width > Client.currentGameWidth) {
+			return false;
+		}
+		if (bounds.y + bounds.height > Client.currentGameHeight) {
+			return false;
+		}
+		for (UiPanel panel : panels) {
+			if (panel == ignore || !panel.isVisible()) {
+				continue;
+			}
+			if (bounds.intersects(panel.getBounds())) {
+				return false;
+			}
+		}
+		return true;
+	}
+
+	private Rectangle resolveCollision(Rectangle bounds, UiPanel ignore) {
+		if (isPlacementValid(bounds, ignore)) {
+			return bounds;
+		}
+		int step = 8;
+		int maxRadius = Math.max(Client.currentGameWidth, Client.currentGameHeight);
+		int baseX = bounds.x;
+		int baseY = bounds.y;
+		for (int radius = step; radius <= maxRadius; radius += step) {
+			int left = baseX - radius;
+			int right = baseX + radius;
+			int top = baseY - radius;
+			int bottom = baseY + radius;
+			Rectangle candidate = new Rectangle(bounds);
+			int[] xs = { left, baseX, right, baseX };
+			int[] ys = { baseY, top, baseY, bottom };
+			for (int index = 0; index < xs.length; index++) {
+				candidate.setLocation(xs[index], ys[index]);
+				candidate.x = clamp(candidate.x, 0, Client.currentGameWidth - candidate.width);
+				candidate.y = clamp(candidate.y, 0, Client.currentGameHeight - candidate.height);
+				if (isPlacementValid(candidate, ignore)) {
+					return new Rectangle(candidate);
+				}
+			}
+		}
+		return null;
 	}
 
 	private static int clamp(int value, int min, int max) {
