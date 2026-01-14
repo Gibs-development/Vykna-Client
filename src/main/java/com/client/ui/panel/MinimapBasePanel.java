@@ -13,16 +13,17 @@ public class MinimapBasePanel extends PanelManager.BasePanel {
 	@Override
 	public void draw(Client client) {
 		Rectangle bounds = getBounds();
+		int headerHeight = PanelManager.getPanelHeaderHeight(client, this);
 		int clipLeft = DrawingArea.topX;
 		int clipTop = DrawingArea.topY;
 		int clipRight = DrawingArea.bottomX;
 		int clipBottom = DrawingArea.bottomY;
 
-		DrawingArea.setDrawingArea(bounds.y + bounds.height, bounds.x, bounds.x + bounds.width, bounds.y + PanelManager.PANEL_HEADER_HEIGHT);
-		client.drawMinimapAt(bounds.x, bounds.y + PanelManager.PANEL_HEADER_HEIGHT, bounds.width, bounds.height - PanelManager.PANEL_HEADER_HEIGHT);
+		DrawingArea.setDrawingArea(bounds.y + bounds.height, bounds.x, bounds.x + bounds.width, bounds.y + headerHeight);
+		client.drawMinimapAt(bounds.x, bounds.y + headerHeight, bounds.width, bounds.height - headerHeight);
 		if (client.isRs3EditModeActive()) {
-			Rectangle content = client.getRs3MinimapContentBounds(bounds.x, bounds.y + PanelManager.PANEL_HEADER_HEIGHT,
-					bounds.width, bounds.height - PanelManager.PANEL_HEADER_HEIGHT);
+			Rectangle content = client.getRs3MinimapContentBounds(bounds.x, bounds.y + headerHeight,
+					bounds.width, bounds.height - headerHeight);
 			if (content != null) {
 				DrawingArea.drawPixels(1, content.y, content.x, 0xffd24a, content.width);
 				DrawingArea.drawPixels(1, content.y + content.height - 1, content.x, 0xffd24a, content.width);
@@ -36,19 +37,21 @@ public class MinimapBasePanel extends PanelManager.BasePanel {
 	@Override
 	public boolean handleMouse(Client client, int mouseX, int mouseY) {
 		Rectangle bounds = getBounds();
+		int headerHeight = PanelManager.getPanelHeaderHeight(client, this);
 		int absoluteX = bounds.x + mouseX;
 		int absoluteY = bounds.y + mouseY;
-		client.updateRs3MinimapHovers(absoluteX, absoluteY, bounds.x, bounds.y + PanelManager.PANEL_HEADER_HEIGHT, bounds.width, bounds.height - PanelManager.PANEL_HEADER_HEIGHT);
-		client.processRs3MinimapActions(absoluteX, absoluteY, bounds.x, bounds.y + PanelManager.PANEL_HEADER_HEIGHT, bounds.width, bounds.height - PanelManager.PANEL_HEADER_HEIGHT);
+		client.updateRs3MinimapHovers(absoluteX, absoluteY, bounds.x, bounds.y + headerHeight, bounds.width, bounds.height - headerHeight);
+		client.processRs3MinimapActions(absoluteX, absoluteY, bounds.x, bounds.y + headerHeight, bounds.width, bounds.height - headerHeight);
 		return true;
 	}
 
 	@Override
 	public boolean handleClick(Client client, int mouseX, int mouseY) {
 		Rectangle bounds = getBounds();
+		int headerHeight = PanelManager.getPanelHeaderHeight(client, this);
 		int absoluteX = bounds.x + mouseX;
 		int absoluteY = bounds.y + mouseY;
-		client.processRs3MinimapClick(absoluteX, absoluteY, bounds.x, bounds.y + PanelManager.PANEL_HEADER_HEIGHT, bounds.width, bounds.height - PanelManager.PANEL_HEADER_HEIGHT);
+		client.processRs3MinimapClick(absoluteX, absoluteY, bounds.x, bounds.y + headerHeight, bounds.width, bounds.height - headerHeight);
 		return true;
 	}
 }

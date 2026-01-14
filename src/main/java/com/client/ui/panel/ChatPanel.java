@@ -17,43 +17,46 @@ public class ChatPanel extends PanelManager.BasePanel {
 	@Override
 	public void draw(Client client) {
 		Rectangle bounds = getBounds();
-		Layout layout = layout(bounds);
+		int headerHeight = PanelManager.getPanelHeaderHeight(client, this);
+		Layout layout = layout(bounds, headerHeight);
 		client.setRs3ChatLayout(layout.headerRect, layout.messageRect, layout.inputRect);
 		int clipLeft = DrawingArea.topX;
 		int clipTop = DrawingArea.topY;
 		int clipRight = DrawingArea.bottomX;
 		int clipBottom = DrawingArea.bottomY;
 
-		DrawingArea.setDrawingArea(bounds.y + bounds.height, bounds.x, bounds.x + bounds.width, bounds.y + PanelManager.PANEL_HEADER_HEIGHT);
-		client.drawChatAreaAt(bounds.x, bounds.y + PanelManager.PANEL_HEADER_HEIGHT, bounds.width, bounds.height - PanelManager.PANEL_HEADER_HEIGHT);
+		DrawingArea.setDrawingArea(bounds.y + bounds.height, bounds.x, bounds.x + bounds.width, bounds.y + headerHeight);
+		client.drawChatAreaAt(bounds.x, bounds.y + headerHeight, bounds.width, bounds.height - headerHeight);
 		DrawingArea.setDrawingArea(clipBottom, clipLeft, clipRight, clipTop);
 	}
 
 	@Override
 	public boolean handleMouse(Client client, int mouseX, int mouseY) {
 		Rectangle bounds = getBounds();
-		Layout layout = layout(bounds);
+		int headerHeight = PanelManager.getPanelHeaderHeight(client, this);
+		Layout layout = layout(bounds, headerHeight);
 		client.setRs3ChatLayout(layout.headerRect, layout.messageRect, layout.inputRect);
 		int baseX = bounds.x;
-		int baseY = bounds.y + PanelManager.PANEL_HEADER_HEIGHT;
+		int baseY = bounds.y + headerHeight;
 		int absoluteX = baseX + mouseX;
 		int absoluteY = baseY + mouseY;
-		client.processRs3ChatModeClick(absoluteX, absoluteY, absoluteX, absoluteY, false, baseX, baseY, bounds.width, bounds.height - PanelManager.PANEL_HEADER_HEIGHT);
-		client.updateChatScroll(absoluteX, absoluteY, baseX, baseY, bounds.width, bounds.height - PanelManager.PANEL_HEADER_HEIGHT);
+		client.processRs3ChatModeClick(absoluteX, absoluteY, absoluteX, absoluteY, false, baseX, baseY, bounds.width, bounds.height - headerHeight);
+		client.updateChatScroll(absoluteX, absoluteY, baseX, baseY, bounds.width, bounds.height - headerHeight);
 		return true;
 	}
 
 	@Override
 	public boolean handleClick(Client client, int mouseX, int mouseY) {
 		Rectangle bounds = getBounds();
-		Layout layout = layout(bounds);
+		int headerHeight = PanelManager.getPanelHeaderHeight(client, this);
+		Layout layout = layout(bounds, headerHeight);
 		client.setRs3ChatLayout(layout.headerRect, layout.messageRect, layout.inputRect);
 		int baseX = bounds.x;
-		int baseY = bounds.y + PanelManager.PANEL_HEADER_HEIGHT;
+		int baseY = bounds.y + headerHeight;
 		int absoluteX = baseX + mouseX;
 		int absoluteY = baseY + mouseY;
-		client.processRs3ChatModeClick(absoluteX, absoluteY, absoluteX, absoluteY, true, baseX, baseY, bounds.width, bounds.height - PanelManager.PANEL_HEADER_HEIGHT);
-		client.updateChatScroll(absoluteX, absoluteY, baseX, baseY, bounds.width, bounds.height - PanelManager.PANEL_HEADER_HEIGHT);
+		client.processRs3ChatModeClick(absoluteX, absoluteY, absoluteX, absoluteY, true, baseX, baseY, bounds.width, bounds.height - headerHeight);
+		client.updateChatScroll(absoluteX, absoluteY, baseX, baseY, bounds.width, bounds.height - headerHeight);
 		return true;
 	}
 
@@ -67,11 +70,11 @@ public class ChatPanel extends PanelManager.BasePanel {
 		return false;
 	}
 
-	private Layout layout(Rectangle bounds) {
+	private Layout layout(Rectangle bounds, int headerHeight) {
 		int areaX = bounds.x;
-		int areaY = bounds.y + PanelManager.PANEL_HEADER_HEIGHT;
+		int areaY = bounds.y + headerHeight;
 		int areaWidth = bounds.width;
-		int areaHeight = bounds.height - PanelManager.PANEL_HEADER_HEIGHT;
+		int areaHeight = bounds.height - headerHeight;
 		int innerWidth = Math.max(0, areaWidth - PADDING * 2);
 		int innerHeight = Math.max(0, areaHeight - PADDING * 2);
 		Rectangle headerRect = new Rectangle(areaX + PADDING, areaY + PADDING, innerWidth, HEADER_HEIGHT);

@@ -39,8 +39,9 @@ public class TabBarPanel extends PanelManager.BasePanel {
 	@Override
 	public void draw(Client client) {
 		Rectangle bounds = getBounds();
+		int headerHeight = PanelManager.getPanelHeaderHeight(client, this);
 		int startX = bounds.x + ICON_PADDING;
-		int startY = bounds.y + PanelManager.PANEL_HEADER_HEIGHT + ICON_PADDING;
+		int startY = bounds.y + headerHeight + ICON_PADDING;
 		int columns = Math.max(1, (bounds.width - ICON_PADDING * 2) / (ICON_SIZE + ICON_PADDING));
 		PanelManager manager = client.getPanelManager();
 
@@ -76,8 +77,9 @@ public class TabBarPanel extends PanelManager.BasePanel {
 	@Override
 	public boolean handleClick(Client client, int mouseX, int mouseY) {
 		Rectangle bounds = getBounds();
+		int headerHeight = PanelManager.getPanelHeaderHeight(client, this);
 		int startX = bounds.x + ICON_PADDING;
-		int startY = bounds.y + PanelManager.PANEL_HEADER_HEIGHT + ICON_PADDING;
+		int startY = bounds.y + headerHeight + ICON_PADDING;
 		int columns = Math.max(1, (bounds.width - ICON_PADDING * 2) / (ICON_SIZE + ICON_PADDING));
 		int absoluteX = bounds.x + mouseX;
 		int absoluteY = bounds.y + mouseY;

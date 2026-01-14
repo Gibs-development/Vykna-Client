@@ -59,7 +59,7 @@ public final class RSImageProducer {
 	private static final ColorModel COLOR_MODEL = new DirectColorModel(32, 0xff0000, 0xff00, 0xff);
 
 	public static Point2D.Double getStretchScale() {
-		if (Client.currentScreenMode == ScreenMode.FIXED) {
+		if (Client.currentScreenMode == ScreenMode.FIXED && Client.stretched) {
 			double widthScale = (double) Client.instance.getGameComponent().getWidth() / (double) ScreenMode.FIXED.getWidth();
 			double heightScale = (double) Client.instance.getGameComponent().getHeight() / (double) ScreenMode.FIXED.getHeight();
 			return new Point2D.Double(Math.max(1, widthScale), Math.max(1, heightScale));

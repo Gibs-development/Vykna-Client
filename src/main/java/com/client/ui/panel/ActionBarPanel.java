@@ -2,7 +2,7 @@ package com.client.ui.panel;
 
 import com.client.Client;
 import com.client.DrawingArea;
-import com.client.RSInterface;
+import com.client.graphics.interfaces.RSInterface;
 
 import java.awt.Rectangle;
 
@@ -19,8 +19,9 @@ public class ActionBarPanel extends PanelManager.BasePanel {
 	@Override
 	public void draw(Client client) {
 		Rectangle bounds = getBounds();
+		int headerHeight = PanelManager.getPanelHeaderHeight(client, this);
 		int contentX = bounds.x + 6;
-		int contentY = bounds.y + PanelManager.PANEL_HEADER_HEIGHT + 6;
+		int contentY = bounds.y + headerHeight + 6;
 		int contentWidth = bounds.width - 12;
 		int barWidth = Math.max(60, contentWidth);
 		drawBar(contentX, contentY, barWidth, BAR_HEIGHT, getHealthPercent(client), 0x3a3a3a, 0x8c1f1f);

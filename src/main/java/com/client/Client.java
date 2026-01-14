@@ -282,18 +282,22 @@ public class Client extends RSApplet {
 	}
 
 	public boolean canToggleRs3ChatInput() {
-		return isRs3InterfaceStyle() && inputDialogState == 0 && !messagePromptRaised;
+		return loggedIn && isRs3InterfaceStyle() && inputDialogState == 0 && !messagePromptRaised;
 	}
 
 	private void drawRs3Panels() {
 		panelManager.ensureRs3Layout(this);
 		rs3XpOverride = false;
-		panelManager.drawPanels(this, isRs3EditMode());
-		if (isRs3EditMode()) {
-			newSmallFont.drawBasicString("EDIT MODE", 8, 14, 0xffcc66, 0);
-			drawViewportFrame();
+		panelManager.drawPanels(this);
+	}
+
+	private void drawRs3Overlays() {
+		if (!isRs3EditMode()) {
+			return;
 		}
-		return value;
+		panelManager.drawEditOverlays(this);
+		newSmallFont.drawBasicString("EDIT MODE", 8, 14, 0xffcc66, 0);
+		drawViewportFrame();
 	}
 
 	private void ensureRs3ViewportBounds() {
@@ -1364,6 +1368,7 @@ public class Client extends RSApplet {
 					messageBaseY = messageRect.y - 7;
 				}
 				DrawingArea.setDrawingArea(messageClipBottom, messageClipLeft, messageClipRight, messageClipTop);
+				int publicChatColor = isRs3InterfaceStyle() ? 0x33ff66 : 255;
 				for (int k = 0; k < 500; k++)
 					if (chatMessages[k] != null) {
 						// System.out.println(chatMessages[k]);
@@ -1417,7 +1422,7 @@ public class Client extends RSApplet {
 									}
 										newRegularFont.drawBasicString(s1 + ":", xPos - 1, yPos - 1 + messageBaseY, 0, -1);
 									xPos += newRegularFont.getTextWidth(s1) + 5;
-										newRegularFont.drawBasicString(chatMessages[k], xPos - 1, yPos - 1 + messageBaseY, 255, -1, false);
+										newRegularFont.drawBasicString(chatMessages[k], xPos - 1, yPos - 1 + messageBaseY, publicChatColor, -1, false);
 								}
 								j++;
 								j77++;
@@ -12363,7 +12368,7 @@ public class Client extends RSApplet {
 		return new Rectangle(x, y, size, size);
 	}
 
-	private Rectangle getRs3CompassBounds(int baseX, int baseY, int width, int height) {
+	public Rectangle getRs3CompassBounds(int baseX, int baseY, int width, int height) {
 		Rectangle minimapBounds = getRs3MinimapBounds(baseX, baseY, width, height);
 		if (minimapBounds == null) {
 			return null;
@@ -20097,12 +20102,14 @@ public class Client extends RSApplet {
 			uiGraphicsBuffer.setCanvas();
 			DrawingArea.setAllPixelsToZero();
 			blitViewportToUiBuffer(viewport);
+			DrawingArea.defaultDrawingAreaSize();
 		}
 
 		if (loggedIn) {
 			if (!inCutScene) {
 				if (loginScreenGraphicsBuffer == null && currentScreenMode != ScreenMode.FIXED) {
 					if (isRs3InterfaceStyle()) {
+						DrawingArea.defaultDrawingAreaSize();
 						drawRs3Panels();
 					} else {
 						drawMinimap();
@@ -20112,6 +20119,10 @@ public class Client extends RSApplet {
 				}
 			}
 			draw3dScreen();
+			if (isRs3InterfaceStyle()) {
+				DrawingArea.defaultDrawingAreaSize();
+				drawRs3Overlays();
+			}
 		}
 
         processExperienceCounter();
