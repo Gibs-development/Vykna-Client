@@ -4,6 +4,9 @@ public final class Rasterizer extends DrawingArea {
 
     public static boolean saveDepth;
     public static float[] depthBuffer;
+    public static boolean DEBUG_SCANLINE_SKIP = false;
+    private static int frameId;
+    private static int lastSkipFrame = -1;
     private static int mipMapLevel;
     public static int textureAmount = 96;
     static boolean aBoolean1462;
@@ -81,6 +84,19 @@ public final class Rasterizer extends DrawingArea {
         }
         textureInt1 = width / 2;
         textureInt2 = height / 2;
+    }
+
+    public static void setFrameId(int id) {
+        frameId = id;
+    }
+
+    private static void logScanlineSkip(int y, int x1, int x2, int width, int height, int pixelLength, int offsetsLength) {
+        if (!DEBUG_SCANLINE_SKIP || frameId == lastSkipFrame) {
+            return;
+        }
+        lastSkipFrame = frameId;
+        System.out.println("Rasterizer: skipped scanline y=" + y + " x=[" + x1 + "," + x2 + ") "
+                + "viewport=" + width + "x" + height + " pixels=" + pixelLength + " offsets=" + offsetsLength);
     }
 
     public static void drawFog(int rgb, int begin, int end) {
@@ -2520,6 +2536,25 @@ public final class Rasterizer extends DrawingArea {
 
     public static void drawHDGouraudScanline(int[] dest, int offset, int x1, int x2, int r1, int g1, int b1, int r2,
                                              int g2, int b2, float z1, float z2) {
+        int width = DrawingArea.width;
+        int height = DrawingArea.height;
+        if (width <= 0 || height <= 0 || dest == null) {
+            return;
+        }
+        if (anIntArray1472 == null || anIntArray1472.length != height) {
+            method365(width, height); // keep scanline offsets aligned with the viewport
+        }
+        int y = offset / width;
+        if (y < 0 || y >= height) {
+            logScanlineSkip(y, x1, x2, width, height, dest.length, anIntArray1472.length);
+            return;
+        }
+        int baseOffset = anIntArray1472[y];
+        if (baseOffset < 0 || baseOffset >= dest.length) {
+            logScanlineSkip(y, x1, x2, width, height, dest.length, anIntArray1472.length);
+            return;
+        }
+        offset = baseOffset;
         int n = x2 - x1;
         if (n <= 0) {
             return;
@@ -2540,8 +2575,32 @@ public final class Rasterizer extends DrawingArea {
                 x1 = 0;
             }
         }
+        if (x2 > width) {
+            n -= x2 - width;
+            x2 = width;
+        }
+        if (x1 < 0) {
+            r1 -= x1 * r2;
+            g1 -= x1 * g2;
+            b1 -= x1 * b2;
+            x1 = 0;
+            n = x2 - x1;
+        }
+        if (n <= 0) {
+            return;
+        }
         if (x1 < x2) {
             offset += x1;
+            int maxCount = dest.length - offset;
+            if (maxCount <= 0 || maxCount < n) {
+                logScanlineSkip(y, x1, x2, width, height, dest.length, anIntArray1472.length);
+                return;
+            }
+            if (saveDepth && (depthBuffer == null || depthBuffer.length <= offset + n - 1)) {
+                logScanlineSkip(y, x1, x2, width, height, dest.length,
+                        anIntArray1472 != null ? anIntArray1472.length : 0);
+                return;
+            }
             z1 += z2 * x1;
             if (anInt1465 == 0) {
                 while (--n >= 0) {
