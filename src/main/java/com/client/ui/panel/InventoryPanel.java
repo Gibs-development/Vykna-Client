@@ -5,6 +5,7 @@ import com.client.DrawingArea;
 import com.client.graphics.interfaces.RSInterface;
 
 import java.awt.Dimension;
+import java.awt.Point;
 import java.awt.Rectangle;
 
 public class InventoryPanel extends PanelManager.TabPanel {
@@ -92,11 +93,12 @@ public class InventoryPanel extends PanelManager.TabPanel {
 		if (container == null) {
 			return;
 		}
+		Point containerOffset = getContainerOffset();
 		Rectangle bounds = getBounds();
 		int padX = container.invSpritePadX;
 		int padY = container.invSpritePadY;
-		int startX = bounds.x + CONTENT_PADDING;
-		int startY = bounds.y + PanelManager.PANEL_HEADER_HEIGHT + CONTENT_PADDING;
+		int startX = bounds.x + containerOffset.x;
+		int startY = bounds.y + PanelManager.PANEL_HEADER_HEIGHT + containerOffset.y;
 		int gridColor = 0x1a1a1a;
 		for (int row = 0; row < cachedRows; row++) {
 			for (int col = 0; col < cachedColumns; col++) {
@@ -105,6 +107,22 @@ public class InventoryPanel extends PanelManager.TabPanel {
 				DrawingArea.drawPixels(SLOT_SIZE, y, x, gridColor, SLOT_SIZE);
 			}
 		}
+	}
+
+	private Point getContainerOffset() {
+		int interfaceId = Client.tabInterfaceIDs[getTabIndex()];
+		RSInterface parent = RSInterface.interfaceCache[interfaceId];
+		if (parent == null || parent.children == null) {
+			return new Point(CONTENT_PADDING, CONTENT_PADDING);
+		}
+		for (int index = 0; index < parent.children.length; index++) {
+			if (parent.children[index] == INVENTORY_CONTAINER_ID) {
+				int offsetX = Math.max(CONTENT_PADDING, parent.childX[index]);
+				int offsetY = Math.max(CONTENT_PADDING, parent.childY[index]);
+				return new Point(offsetX, offsetY);
+			}
+		}
+		return new Point(CONTENT_PADDING, CONTENT_PADDING);
 	}
 
 	@Override

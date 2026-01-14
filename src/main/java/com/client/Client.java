@@ -841,81 +841,86 @@ public class Client extends RSApplet {
 		String text[] = { "On", "Friends", "Off", "Hide" };
 		int textColor[] = { 65280, 0xffff00, 0xff0000, 65535 };
 		int chatAreaHeight = getChatAreaHeight();
+		int chatAreaWidth = getChatAreaWidth();
+		int buttonBaseX = xOffset;
+		if (rs3ChatOverride) {
+			buttonBaseX = xOffset + Math.max(0, (chatAreaWidth - CHAT_AREA_WIDTH) / 2);
+		}
 		int buttonBaseY = yOffset + chatAreaHeight - 23;
 		int buttonLabelY = buttonBaseY + 10;
 		int buttonTimeY = buttonBaseY + 15;
 		int buttonStatusY = buttonBaseY + 21;
 
 		if (hideChatArea) {
-			channelButtons.drawSprite(xOffset, buttonBaseY);
+			channelButtons.drawSprite(buttonBaseX, buttonBaseY);
 		}
 
 		switch (channelButtonClickPosition) {
 			case 0:
-				chatButtons[1].drawSprite(xOffset + 5, buttonBaseY);
+				chatButtons[1].drawSprite(buttonBaseX + 5, buttonBaseY);
 				break;
 			case 1:
-				chatButtons[1].drawSprite(xOffset + 71, buttonBaseY);
+				chatButtons[1].drawSprite(buttonBaseX + 71, buttonBaseY);
 				break;
 			case 2:
-				chatButtons[1].drawSprite(xOffset + 137, buttonBaseY);
+				chatButtons[1].drawSprite(buttonBaseX + 137, buttonBaseY);
 				break;
 			case 3:
-				chatButtons[1].drawSprite(xOffset + 203, buttonBaseY);
+				chatButtons[1].drawSprite(buttonBaseX + 203, buttonBaseY);
 				break;
 			case 4:
-				chatButtons[1].drawSprite(xOffset + 269, buttonBaseY);
+				chatButtons[1].drawSprite(buttonBaseX + 269, buttonBaseY);
 				break;
 			case 5:
-				chatButtons[1].drawSprite(xOffset + 335, buttonBaseY);
+				chatButtons[1].drawSprite(buttonBaseX + 335, buttonBaseY);
 				break;
 		}
 		if (channelButtonHoverPosition == channelButtonClickPosition) {
 			switch (channelButtonHoverPosition) {
 				case 0:
-					chatButtons[2].drawSprite(xOffset + 5, buttonBaseY);
+					chatButtons[2].drawSprite(buttonBaseX + 5, buttonBaseY);
 					break;
 				case 1:
-					chatButtons[2].drawSprite(xOffset + 71, buttonBaseY);
+					chatButtons[2].drawSprite(buttonBaseX + 71, buttonBaseY);
 					break;
 				case 2:
-					chatButtons[2].drawSprite(xOffset + 137, buttonBaseY);
+					chatButtons[2].drawSprite(buttonBaseX + 137, buttonBaseY);
 					break;
 				case 3:
-					chatButtons[2].drawSprite(xOffset + 203, buttonBaseY);
+					chatButtons[2].drawSprite(buttonBaseX + 203, buttonBaseY);
 					break;
 				case 4:
-					chatButtons[2].drawSprite(xOffset + 269, buttonBaseY);
+					chatButtons[2].drawSprite(buttonBaseX + 269, buttonBaseY);
 					break;
 				case 5:
-					chatButtons[2].drawSprite(xOffset + 335, buttonBaseY);
+					chatButtons[2].drawSprite(buttonBaseX + 335, buttonBaseY);
 					break;
 				case 6:
-					chatButtons[3].drawSprite(xOffset + 404, buttonBaseY);
+					chatButtons[3].drawSprite(buttonBaseX + 404, buttonBaseY);
 					break;
 			}
 		} else {
 			switch (channelButtonHoverPosition) {
 				case 0:
-					chatButtons[0].drawSprite(xOffset + 5, buttonBaseY);
+					chatButtons[0].drawSprite(buttonBaseX + 5, buttonBaseY);
 					break;
 				case 1:
-					chatButtons[0].drawSprite(xOffset + 71, buttonBaseY);
+					chatButtons[0].drawSprite(buttonBaseX + 71, buttonBaseY);
 					break;
 				case 2:
-					chatButtons[0].drawSprite(xOffset + 137, buttonBaseY);
+					chatButtons[0].drawSprite(buttonBaseX + 137, buttonBaseY);
 					break;
 				case 3:
-					chatButtons[0].drawSprite(xOffset + 203, buttonBaseY);
+					chatButtons[0].drawSprite(buttonBaseX + 203, buttonBaseY);
 					break;
 				case 4:
-					chatButtons[0].drawSprite(xOffset + 269, buttonBaseY);
+					chatButtons[0].drawSprite(buttonBaseX + 269, buttonBaseY);
 					break;
 				case 5:
-					chatButtons[0].drawSprite(xOffset + 335, buttonBaseY);
+					chatButtons[0].drawSprite(buttonBaseX + 335, buttonBaseY);
 					break;
 				case 6:
-					chatButtons[3].drawSprite(xOffset + 404, buttonBaseY);
+					chatButtons[3].drawSprite(buttonBaseX + 404, buttonBaseY);
 					break;
 			}
 		}
@@ -933,17 +938,17 @@ public class Client extends RSApplet {
 		newSmallFont.drawCenteredString(""+dateFormat.format(new Date().getTime()), xOffset + 459, buttonTimeY, 0xffffff, 0);
 
 
-		smallText.method389(true, xOffset + 26, 0xffffff, "All", buttonTimeY);
-		smallText.method389(true, xOffset + 86, 0xffffff, "Game", buttonLabelY);
-		smallText.method389(true, xOffset + 150, 0xffffff, "Public", buttonLabelY);
-		smallText.method389(true, xOffset + 212, 0xffffff, "Private", buttonLabelY);
-		smallText.method389(true, xOffset + 286, 0xffffff, "Clan", buttonLabelY);
-		smallText.method389(true, xOffset + 349, 0xffffff, "Trade", buttonLabelY);
-		smallText.method382(textColor[gameMode], xOffset + 98, text[gameMode], buttonStatusY, true);
-		smallText.method382(textColor[publicChatMode], xOffset + 164, text[publicChatMode], buttonStatusY, true);
-		smallText.method382(textColor[privateChatMode], xOffset + 230, text[privateChatMode], buttonStatusY, true);
-		smallText.method382(textColor[clanChatMode], xOffset + 296, text[clanChatMode], buttonStatusY, true);
-		smallText.method382(textColor[tradeMode], xOffset + 362, text[tradeMode], buttonStatusY, true);
+		smallText.method389(true, buttonBaseX + 26, 0xffffff, "All", buttonTimeY);
+		smallText.method389(true, buttonBaseX + 86, 0xffffff, "Game", buttonLabelY);
+		smallText.method389(true, buttonBaseX + 150, 0xffffff, "Public", buttonLabelY);
+		smallText.method389(true, buttonBaseX + 212, 0xffffff, "Private", buttonLabelY);
+		smallText.method389(true, buttonBaseX + 286, 0xffffff, "Clan", buttonLabelY);
+		smallText.method389(true, buttonBaseX + 349, 0xffffff, "Trade", buttonLabelY);
+		smallText.method382(textColor[gameMode], buttonBaseX + 98, text[gameMode], buttonStatusY, true);
+		smallText.method382(textColor[publicChatMode], buttonBaseX + 164, text[publicChatMode], buttonStatusY, true);
+		smallText.method382(textColor[privateChatMode], buttonBaseX + 230, text[privateChatMode], buttonStatusY, true);
+		smallText.method382(textColor[clanChatMode], buttonBaseX + 296, text[clanChatMode], buttonStatusY, true);
+		smallText.method382(textColor[tradeMode], buttonBaseX + 362, text[tradeMode], buttonStatusY, true);
 	}
 
 	ItemSearch grandExchangeItemSearch = null;
@@ -11962,11 +11967,11 @@ public class Client extends RSApplet {
 			return null;
 		}
 		int padding = 6;
-		int contentWidth = Math.min(RS3_MINIMAP_MAX_SIZE, Math.max(120, width - padding * 2));
-		int contentHeight = Math.min(RS3_MINIMAP_MAX_SIZE, Math.max(120, height - padding * 2));
-		int x = baseX + (width - contentWidth) / 2;
-		int y = baseY + (height - contentHeight) / 2;
-		return new Rectangle(x, y, contentWidth, contentHeight);
+		int size = Math.min(RS3_MINIMAP_MAX_SIZE, Math.min(width, height) - padding * 2);
+		size = Math.max(120, size);
+		int x = baseX + (width - size) / 2;
+		int y = baseY + (height - size) / 2;
+		return new Rectangle(x, y, size, size);
 	}
 
 	private Rectangle getRs3CompassBounds(int baseX, int baseY, int width, int height) {
@@ -11987,18 +11992,9 @@ public class Client extends RSApplet {
 		rs3MinimapMaskHeight = height;
 		rs3MinimapMaskOffsets = new int[height];
 		rs3MinimapMaskWidths = new int[height];
-		double rx = width / 2.0;
-		double ry = height / 2.0;
-		double centerX = rx;
-		double centerY = ry;
 		for (int y = 0; y < height; y++) {
-			double dy = (y - centerY) / ry;
-			double span = dy * dy <= 1.0 ? Math.sqrt(1.0 - dy * dy) * rx : 0.0;
-			int half = (int) Math.floor(span);
-			int offset = (int) Math.round(centerX - half);
-			int widthSpan = half * 2;
-			rs3MinimapMaskOffsets[y] = Math.max(0, offset);
-			rs3MinimapMaskWidths[y] = Math.min(width, widthSpan);
+			rs3MinimapMaskOffsets[y] = 0;
+			rs3MinimapMaskWidths[y] = width;
 		}
 	}
 
@@ -12825,38 +12821,38 @@ public class Client extends RSApplet {
 		if (minimapBounds == null) {
 			return;
 		}
-		int radius = Math.min(minimapBounds.width, minimapBounds.height) / 2;
+		if (!minimapBounds.contains(mouseX, mouseY) || !mouseMapPosition(mouseX, mouseY, panelBaseX, panelBaseY, width, height) || runHover) {
+			return;
+		}
 		int centerX = minimapBounds.x + minimapBounds.width / 2;
 		int centerY = minimapBounds.y + minimapBounds.height / 2;
 		int localX = mouseX - centerX;
 		int localY = mouseY - centerY;
-		if (inCircle(0, 0, localX, localY, radius) && mouseMapPosition(mouseX, mouseY, panelBaseX, panelBaseY, width, height) && !runHover) {
-			int k = viewRotation + minimapRotation & 0x7ff;
-			int i1 = Rasterizer.anIntArray1470[k];
-			int j1 = Rasterizer.anIntArray1471[k];
-			i1 = i1 * (minimapZoom + 256) >> 8;
-			j1 = j1 * (minimapZoom + 256) >> 8;
-			int k1 = localY * i1 + localX * j1 >> 11;
-			int l1 = localY * j1 - localX * i1 >> 11;
-			int i2 = myPlayer.x + k1 >> 7;
-			int j2 = myPlayer.y - l1 >> 7;
-			if (myPlayer.isAdminRights() && controlIsDown) {
-				teleport(baseX + i2, baseY + j2);
-			} else {
-				boolean flag1 = doWalkTo(1, myPlayer.pathX[0], myPlayer.pathY[0], 0, 0, 0, 0, 0, j2, true, i2);
-				if (flag1) {
-					stream.writeUnsignedByte(localX);
-					stream.writeUnsignedByte(localY);
-					stream.writeWord(viewRotation);
-					stream.writeUnsignedByte(57);
-					stream.writeUnsignedByte(minimapRotation);
-					stream.writeUnsignedByte(minimapZoom);
-					stream.writeUnsignedByte(89);
-					stream.writeWord(myPlayer.x);
-					stream.writeWord(myPlayer.y);
-					stream.writeUnsignedByte(anInt1264);
-					stream.writeUnsignedByte(63);
-				}
+		int k = viewRotation + minimapRotation & 0x7ff;
+		int i1 = Rasterizer.anIntArray1470[k];
+		int j1 = Rasterizer.anIntArray1471[k];
+		i1 = i1 * (minimapZoom + 256) >> 8;
+		j1 = j1 * (minimapZoom + 256) >> 8;
+		int k1 = localY * i1 + localX * j1 >> 11;
+		int l1 = localY * j1 - localX * i1 >> 11;
+		int i2 = myPlayer.x + k1 >> 7;
+		int j2 = myPlayer.y - l1 >> 7;
+		if (myPlayer.isAdminRights() && controlIsDown) {
+			teleport(baseX + i2, baseY + j2);
+		} else {
+			boolean flag1 = doWalkTo(1, myPlayer.pathX[0], myPlayer.pathY[0], 0, 0, 0, 0, 0, j2, true, i2);
+			if (flag1) {
+				stream.writeUnsignedByte(localX);
+				stream.writeUnsignedByte(localY);
+				stream.writeWord(viewRotation);
+				stream.writeUnsignedByte(57);
+				stream.writeUnsignedByte(minimapRotation);
+				stream.writeUnsignedByte(minimapZoom);
+				stream.writeUnsignedByte(89);
+				stream.writeWord(myPlayer.x);
+				stream.writeWord(myPlayer.y);
+				stream.writeUnsignedByte(anInt1264);
+				stream.writeUnsignedByte(63);
 			}
 		}
 	}

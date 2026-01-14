@@ -577,6 +577,7 @@ public class PanelManager {
 				return;
 			}
 			Rectangle bounds = getBounds();
+			applyInterfaceBounds(rsInterface, bounds);
 			int scrollPosition = getScrollPosition(rsInterface, bounds);
 			int clipLeft = DrawingArea.topX;
 			int clipTop = DrawingArea.topY;
@@ -591,7 +592,7 @@ public class PanelManager {
 			if (needsScroll(rsInterface, bounds)) {
 				int scrollHeight = bounds.height - PANEL_HEADER_HEIGHT;
 				int scrollMax = getContentHeight(rsInterface);
-				client.drawScrollbar(scrollHeight, scrollOffset, bounds.y + PANEL_HEADER_HEIGHT, bounds.x + bounds.width - 12, scrollMax);
+				client.drawScrollbar(scrollHeight, scrollOffset, bounds.y + PANEL_HEADER_HEIGHT, bounds.x + bounds.width - 16, scrollMax);
 			}
 		}
 
@@ -653,6 +654,11 @@ public class PanelManager {
 
 		int getTabIndex() {
 			return tabIndex;
+		}
+
+		private void applyInterfaceBounds(RSInterface rsInterface, Rectangle bounds) {
+			rsInterface.width = bounds.width;
+			rsInterface.height = bounds.height - PANEL_HEADER_HEIGHT;
 		}
 	}
 
@@ -724,8 +730,8 @@ public class PanelManager {
 				return;
 			}
 			cacheOriginalPositions(rsInterface);
-			int centerX = bounds.x + bounds.width / 2;
-			int centerY = bounds.y + PANEL_HEADER_HEIGHT + (bounds.height - PANEL_HEADER_HEIGHT) / 2;
+			int centerX = bounds.width / 2;
+			int centerY = PANEL_HEADER_HEIGHT + (bounds.height - PANEL_HEADER_HEIGHT) / 2;
 			setChildPosition(rsInterface, CHARACTER_CHILD_ID, centerX - 32, centerY - 70);
 			setChildPosition(rsInterface, 1645, centerX - 18, centerY - 132);
 			setChildPosition(rsInterface, 1646, centerX - 86, centerY - 90);

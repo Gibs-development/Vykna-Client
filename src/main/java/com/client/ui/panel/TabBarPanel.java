@@ -9,7 +9,6 @@ import java.awt.Rectangle;
 public class TabBarPanel extends PanelManager.BasePanel {
 	private static final int ICON_SIZE = 32;
 	private static final int ICON_PADDING = 4;
-	private static final int ICON_COLUMNS = 2;
 	private static final int ACTIVE_BG = 0x262626;
 	private static final int INACTIVE_BG = 0x1a1a1a;
 
@@ -31,7 +30,10 @@ public class TabBarPanel extends PanelManager.BasePanel {
 	};
 
 	public TabBarPanel(int id, Rectangle bounds) {
-		super(id, bounds, true, true, "Tabs");
+		super(id, bounds, true, true, "Tabs", true,
+				ICON_SIZE + ICON_PADDING * 2,
+				ICON_SIZE + ICON_PADDING * 2 + PanelManager.PANEL_HEADER_HEIGHT,
+				false);
 	}
 
 	@Override
@@ -39,11 +41,12 @@ public class TabBarPanel extends PanelManager.BasePanel {
 		Rectangle bounds = getBounds();
 		int startX = bounds.x + ICON_PADDING;
 		int startY = bounds.y + PanelManager.PANEL_HEADER_HEIGHT + ICON_PADDING;
+		int columns = Math.max(1, (bounds.width - ICON_PADDING * 2) / (ICON_SIZE + ICON_PADDING));
 		PanelManager manager = client.getPanelManager();
 
 		for (int index = 0; index < TABS.length; index++) {
-			int col = index % ICON_COLUMNS;
-			int row = index / ICON_COLUMNS;
+			int col = index % columns;
+			int row = index / columns;
 			int x = startX + col * (ICON_SIZE + ICON_PADDING);
 			int y = startY + row * (ICON_SIZE + ICON_PADDING);
 			boolean active = manager.isPanelVisible(TABS[index].panelId);
@@ -75,13 +78,14 @@ public class TabBarPanel extends PanelManager.BasePanel {
 		Rectangle bounds = getBounds();
 		int startX = bounds.x + ICON_PADDING;
 		int startY = bounds.y + PanelManager.PANEL_HEADER_HEIGHT + ICON_PADDING;
+		int columns = Math.max(1, (bounds.width - ICON_PADDING * 2) / (ICON_SIZE + ICON_PADDING));
 		int absoluteX = bounds.x + mouseX;
 		int absoluteY = bounds.y + mouseY;
 		PanelManager manager = client.getPanelManager();
 
 		for (int index = 0; index < TABS.length; index++) {
-			int col = index % ICON_COLUMNS;
-			int row = index / ICON_COLUMNS;
+			int col = index % columns;
+			int row = index / columns;
 			int x = startX + col * (ICON_SIZE + ICON_PADDING);
 			int y = startY + row * (ICON_SIZE + ICON_PADDING);
 			if (absoluteX >= x && absoluteX <= x + ICON_SIZE && absoluteY >= y && absoluteY <= y + ICON_SIZE) {
