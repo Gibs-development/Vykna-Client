@@ -14211,6 +14211,7 @@ public class Client extends RSApplet {
 			return;
 		}
 		anInt1061++;
+		Rasterizer.setFrameId(anInt1061);
 		if (!loggedIn) {
 			drawLoginScreen(false);
 		} else {
