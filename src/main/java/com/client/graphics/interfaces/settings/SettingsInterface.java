@@ -9,6 +9,7 @@ import java.util.Arrays;
 
 public class SettingsInterface extends RSInterface {
 
+    private static final int[] DARK_DROPDOWN_COLORS = { 0x1a1a1a, 0x2a2a2a, 0x202224, 0x2b2e32, 0x34383d };
     public static final Setting INTERFACE_STYLE = new Setting("Interface Style", 0, new InterfaceStyleMenu(), "OSRS", "RS3");
     public static final Setting RS3_EDIT_MODE = new Setting("RS3 Edit Mode", 1, new Rs3EditModeMenu(), "Off", "On");
     public static final Setting OLD_GAMEFRAME = new Setting("Gameframe", 1, new OldGameframeMenu(), "2006", "OSRS");
@@ -64,7 +65,8 @@ public class SettingsInterface extends RSInterface {
         childIndex = 0;
 
         SettingsWidgetSection[] sections = {
-                new SettingsWidgetSection("Interface Options", INTERFACE_STYLE, RS3_EDIT_MODE, OLD_GAMEFRAME, INVENTORY_MENU, BOUNTY_HUNTER, ENTITY_TARGET, GAME_TIMERS, CHAT_EFFECT, GROUND_ITEM_NAMES, PM_NOTIFICATION),
+                new SettingsWidgetSection("RS3 Options", INTERFACE_STYLE, RS3_EDIT_MODE),
+                new SettingsWidgetSection("Interface Options", OLD_GAMEFRAME, INVENTORY_MENU, BOUNTY_HUNTER, ENTITY_TARGET, GAME_TIMERS, CHAT_EFFECT, GROUND_ITEM_NAMES, PM_NOTIFICATION),
                 new SettingsWidgetSection("Graphics Options", STRETCHED_MODE, DRAW_DISTANCE, ANTI_ALIASING, FOG, SMOOTH_SHADING, TILE_BLENDING , STATUS_BARS , DRAG , PVP_TAB, ROOF, MENU_HOVERS, PLAYER_PROFILE),
         };
 
@@ -92,7 +94,8 @@ public class SettingsInterface extends RSInterface {
     public void build(Setting setting) {
         setting.setInterfaceId(childInterfaceId + 1);
         addText(childInterfaceId, setting.getSettingName(), Interfaces.defaultTextDrawingAreas, 1, 0xFFA500, false, true);
-        dropdownMenu(setting.getInterfaceId(), 166,setting.getDefaultOption(), setting.getOptions(), setting.getMenuItem(), Interfaces.defaultTextDrawingAreas, 1);
+        dropdownMenu(setting.getInterfaceId(), 166, setting.getDefaultOption(), setting.getOptions(), setting.getMenuItem(),
+                DARK_DROPDOWN_COLORS, false, Interfaces.defaultTextDrawingAreas, 1);
         setBounds(childInterfaceId,32, yOffset, childIndex, scroll);
         setBounds(childInterfaceId + 1,260, yOffset, childIndex + 1, scroll);
         childInterfaceId += 2;

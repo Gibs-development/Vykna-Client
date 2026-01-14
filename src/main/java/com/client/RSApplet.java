@@ -23,6 +23,8 @@ import com.client.graphics.interfaces.RSInterface;
 import com.client.graphics.interfaces.impl.Keybinding;
 import com.client.graphics.interfaces.impl.SettingsTabWidget;
 import com.client.graphics.interfaces.impl.Slider;
+import com.client.utilities.settings.InterfaceStyle;
+import com.client.utilities.settings.Settings;
 
 public class RSApplet extends Applet implements Runnable, MouseListener, MouseMotionListener, MouseWheelListener,
 		KeyListener, FocusListener, WindowListener {
@@ -48,6 +50,13 @@ public class RSApplet extends Applet implements Runnable, MouseListener, MouseMo
 	@Override
 	public void mouseWheelMoved(MouseWheelEvent event) {
 		int rotation = event.getWheelRotation();
+		Settings settings = Client.getUserSettings();
+		Client client = Client.getInstance();
+		if (settings != null && settings.getInterfaceStyle() == InterfaceStyle.RS3 && client != null) {
+			if (client.getPanelManager().handleMouseWheel(client, getMouseX(), getMouseY(), rotation)) {
+				return;
+			}
+		}
 		if (!handleInterfaceScrolling(event)) {
 			if (getMouseX() > 0 && getMouseX() < 512 && getMouseY() > Client.currentGameHeight - 165
 					&& getMouseY() < Client.currentGameHeight - 25) {

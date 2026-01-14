@@ -13,6 +13,8 @@ public class InterfaceStyleMenu implements MenuItem {
 		Client.getUserSettings().setInterfaceStyle(style);
 		if (style == InterfaceStyle.RS3) {
 			Client.instance.setGameMode(ScreenMode.RESIZABLE, true);
+		} else if (Client.instance != null) {
+			Client.instance.resetRs3InventoryLayout();
 		}
 	}
 }
