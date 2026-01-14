@@ -293,6 +293,7 @@ public class Client extends RSApplet {
 			newSmallFont.drawBasicString("EDIT MODE", 8, 14, 0xffcc66, 0);
 			drawViewportFrame();
 		}
+		return value;
 	}
 
 	private void ensureRs3ViewportBounds() {
