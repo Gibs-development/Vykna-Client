@@ -25,7 +25,11 @@ public interface UiPanel {
 
 	boolean handleMouse(Client client, int mouseX, int mouseY);
 
-    boolean handleClick(Client client, int mouseX, int mouseY);
+	boolean handleClick(Client client, int mouseX, int mouseY);
+
+	default boolean handleRightClick(Client client, int mouseX, int mouseY) {
+		return false;
+	}
 
 	default boolean resizable() {
 		return false;
@@ -41,6 +45,18 @@ public interface UiPanel {
 
 	default boolean keepAspectRatio() {
 		return false;
+	}
+
+	default boolean drawsBackground() {
+		return true;
+	}
+
+	default boolean isClosable() {
+		return true;
+	}
+
+	default boolean isScrollable() {
+		return true;
 	}
 
 	default void onResize(Client client) {
