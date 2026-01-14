@@ -44,10 +44,11 @@ public class InventoryPanel extends PanelManager.TabPanel {
 		RSInterface container = RSInterface.interfaceCache[INVENTORY_CONTAINER_ID];
 		int padX = container == null ? 4 : container.invSpritePadX;
 		int padY = container == null ? 4 : container.invSpritePadY;
+		int headerHeight = PanelManager.getPanelHeaderHeight(client, this);
 		int contentWidth = Math.max(1, width - CONTENT_PADDING * 2);
 		int columns = Math.max(MIN_COLUMNS, Math.min(MAX_COLUMNS, (contentWidth + padX) / (SLOT_SIZE + padX)));
 		int rows = (int) Math.ceil(28D / columns);
-		int neededHeight = rows * SLOT_SIZE + Math.max(0, rows - 1) * padY + CONTENT_PADDING * 2 + PanelManager.PANEL_HEADER_HEIGHT;
+		int neededHeight = rows * SLOT_SIZE + Math.max(0, rows - 1) * padY + CONTENT_PADDING * 2 + headerHeight;
 		int neededWidth = columns * SLOT_SIZE + Math.max(0, columns - 1) * padX + CONTENT_PADDING * 2;
 		return new Dimension(Math.max(width, neededWidth), Math.max(height, neededHeight));
 	}
@@ -60,10 +61,11 @@ public class InventoryPanel extends PanelManager.TabPanel {
 		Rectangle bounds = getBounds();
 		int padX = container.invSpritePadX;
 		int padY = container.invSpritePadY;
+		int headerHeight = PanelManager.getPanelHeaderHeight(client, this);
 		int contentWidth = Math.max(1, bounds.width - CONTENT_PADDING * 2);
 		int columns = Math.max(MIN_COLUMNS, Math.min(MAX_COLUMNS, (contentWidth + padX) / (SLOT_SIZE + padX)));
 		int rows = (int) Math.ceil(28D / columns);
-		int requiredHeight = rows * SLOT_SIZE + Math.max(0, rows - 1) * padY + CONTENT_PADDING * 2 + PanelManager.PANEL_HEADER_HEIGHT;
+		int requiredHeight = rows * SLOT_SIZE + Math.max(0, rows - 1) * padY + CONTENT_PADDING * 2 + headerHeight;
 		bounds.height = Math.max(bounds.height, requiredHeight);
 		if (columns == cachedColumns && rows == cachedRows) {
 			return;
@@ -95,10 +97,11 @@ public class InventoryPanel extends PanelManager.TabPanel {
 		}
 		Point containerOffset = getContainerOffset();
 		Rectangle bounds = getBounds();
+		int headerHeight = PanelManager.getPanelHeaderHeight(client, this);
 		int padX = container.invSpritePadX;
 		int padY = container.invSpritePadY;
 		int startX = bounds.x + containerOffset.x;
-		int startY = bounds.y + PanelManager.PANEL_HEADER_HEIGHT + containerOffset.y;
+		int startY = bounds.y + headerHeight + containerOffset.y;
 		int gridColor = 0x1a1a1a;
 		for (int row = 0; row < cachedRows; row++) {
 			for (int col = 0; col < cachedColumns; col++) {

@@ -486,7 +486,7 @@ public class RSApplet extends Applet implements Runnable, MouseListener, MouseMo
 		if (keyevent.isShiftDown()) {
 			Client.shiftDown = true;
 		}
-		if (Client.instance != null && Client.instance.isRs3InterfaceStyleActive()) {
+		if (Client.instance != null && Client.instance.isRs3InterfaceStyleActive() && Client.loggedIn) {
 			if (i == KeyEvent.VK_ESCAPE && Client.instance.isRs3ChatInputMode()) {
 				Client.inputString = "";
 				Client.instance.setRs3ChatInputMode(false);
