@@ -123,6 +123,7 @@ public class PanelManager {
 			Rectangle bounds = panel.getBounds();
 			if (panel.contains(mouseX, mouseY)) {
 				panel.handleClick(client, mouseX - bounds.x, mouseY - bounds.y);
+				client.performMenuActionIfAvailable();
 				return true;
 			}
 		}

@@ -33,7 +33,7 @@ public final class VyknaShell extends JFrame {
 
     private static final int SIDEBAR_WIDTH = 320;
     private static final int ICON_STRIP_WIDTH = 50;
-    private static final int RESIZE_MARGIN = 12;
+    private static final int RESIZE_MARGIN = 6;
     private final JPanel sidebar = new JPanel();
     private final JPanel iconStrip = new JPanel();
     private final CardLayout cardLayout = new CardLayout();

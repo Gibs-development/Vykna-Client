@@ -7304,6 +7304,15 @@ public class Client extends RSApplet {
 
 	}
 
+	public void performMenuActionIfAvailable() {
+		if (menuOpen) {
+			return;
+		}
+		if (menuActionRow > 0) {
+			doAction(menuActionRow - 1);
+		}
+	}
+
 	public static boolean removeRoofs = true, leftClickAttack = true, chatEffects = true, drawOrbs = true;
 
 	private void setConfigButtonsAtStartup() {
@@ -19656,6 +19665,9 @@ public class Client extends RSApplet {
 		final int neededPixels = aaW * aaH;
 		if (antialiasingPixels == null || antialiasingPixels.length < neededPixels) {
 			antialiasingPixels = new int[neededPixels];
+		}
+		if (antialiasingDepth == null || antialiasingDepth.length < neededPixels) {
+			antialiasingDepth = new float[neededPixels];
 		}
 
 		if (antialiasingOffsets == null || antialiasingOffsets.length < aaH) {
