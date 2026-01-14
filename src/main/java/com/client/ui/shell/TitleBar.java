@@ -44,6 +44,14 @@ public final class TitleBar extends JPanel {
         minBtn.setToolTipText("Minimize");
         minBtn.addActionListener(() -> frame.setState(Frame.ICONIFIED));
 
+        WindowControlButton maxBtn = new WindowControlButton(WindowControlButton.Type.MAXIMIZE);
+        maxBtn.setToolTipText("Maximize");
+        maxBtn.addActionListener(() -> {
+            if (frame instanceof VyknaShell) {
+                ((VyknaShell) frame).toggleMaximize();
+            }
+        });
+
         WindowControlButton closeBtn = new WindowControlButton(WindowControlButton.Type.CLOSE);
         closeBtn.setToolTipText("Close");
         closeBtn.addActionListener(() -> {
@@ -55,6 +63,7 @@ public final class TitleBar extends JPanel {
             controls.add(sidebarBtn);
         }
         controls.add(minBtn);
+        controls.add(maxBtn);
         controls.add(closeBtn);
 
         add(controls, BorderLayout.EAST);
@@ -78,7 +87,7 @@ public final class TitleBar extends JPanel {
      * Drawn window control button (no text = no “...” fallback).
      */
     static final class WindowControlButton extends JComponent {
-        enum Type { SIDEBAR, MINIMIZE, CLOSE }
+        enum Type { SIDEBAR, MINIMIZE, MAXIMIZE, CLOSE }
 
         private final Type type;
         private boolean hover = false;
@@ -148,6 +157,10 @@ public final class TitleBar extends JPanel {
                 switch (type) {
                     case MINIMIZE:
                         g2.drawLine(cx - 6, cy + 4, cx + 6, cy + 4);
+                        break;
+
+                    case MAXIMIZE:
+                        g2.drawRect(cx - 6, cy - 5, 12, 10);
                         break;
 
                     case CLOSE:
