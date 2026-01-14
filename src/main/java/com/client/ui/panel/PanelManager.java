@@ -54,6 +54,7 @@ public class PanelManager {
 	public static final int PANEL_ID_XP_PANEL = 33;
 	public static final int PANEL_ID_ACTION_BAR = 34;
 	private final List<UiPanel> panels = new ArrayList<>();
+	private final Map<Integer, Rectangle> preferredBounds = new HashMap<>();
 	private int layoutWidth = -1;
 	private int layoutHeight = -1;
 	private UiPanel activePanel;
@@ -75,7 +76,11 @@ public class PanelManager {
 			return;
 		}
 		panels.clear();
+		preferredBounds.clear();
 		PanelLayout.populateRs3Panels(panels);
+		for (UiPanel panel : panels) {
+			preferredBounds.put(panel.getId(), new Rectangle(panel.getBounds()));
+		}
 		applySavedLayout(client);
 		layoutWidth = Client.currentGameWidth;
 		layoutHeight = Client.currentGameHeight;
@@ -174,6 +179,7 @@ public class PanelManager {
 						Sound.getSound().playSound(1042, SoundType.SOUND, 0);
 					}
 				}
+				preferredBounds.put(activePanel.getId(), new Rectangle(activePanel.getBounds()));
 			}
 			dragging = false;
 			resizing = false;
@@ -285,6 +291,7 @@ public class PanelManager {
 		layoutWidth = -1;
 		layoutHeight = -1;
 		panels.clear();
+		preferredBounds.clear();
 		ensureRs3Layout(client);
 	}
 
@@ -350,11 +357,16 @@ public class PanelManager {
 		for (UiPanel panel : panels) {
 			Settings.Rs3PanelLayout layout = settings.getRs3PanelLayouts().get(panel.getId());
 			if (layout == null) {
+				preferredBounds.put(panel.getId(), new Rectangle(panel.getBounds()));
 				continue;
 			}
-			panel.getBounds().setSize(layout.getWidth(), layout.getHeight());
-			int clampedX = clamp(layout.getX(), 0, Client.currentGameWidth - panel.getBounds().width);
-			int clampedY = clamp(layout.getY(), 0, Client.currentGameHeight - panel.getBounds().height);
+			Rectangle preferred = new Rectangle(layout.getX(), layout.getY(), layout.getWidth(), layout.getHeight());
+			preferredBounds.put(panel.getId(), preferred);
+			int width = clamp(preferred.width, panel.getMinWidth(), Client.currentGameWidth);
+			int height = clamp(preferred.height, panel.getMinHeight(), Client.currentGameHeight);
+			panel.getBounds().setSize(width, height);
+			int clampedX = clamp(preferred.x, 0, Client.currentGameWidth - panel.getBounds().width);
+			int clampedY = clamp(preferred.y, 0, Client.currentGameHeight - panel.getBounds().height);
 			panel.setPosition(clampedX, clampedY);
 			if (panel instanceof BasePanel) {
 				boolean visible = layout.isVisible() || !panel.isClosable();
@@ -369,7 +381,7 @@ public class PanelManager {
 			return;
 		}
 		for (UiPanel panel : panels) {
-			Rectangle bounds = panel.getBounds();
+			Rectangle bounds = preferredBounds.getOrDefault(panel.getId(), panel.getBounds());
 			settings.getRs3PanelLayouts().put(panel.getId(), new Settings.Rs3PanelLayout(
 					bounds.x, bounds.y, bounds.width, bounds.height, panel.isVisible()));
 		}

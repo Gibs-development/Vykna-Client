@@ -12,6 +12,7 @@ public final class TitleBar extends JPanel {
 
     private final JFrame frame;
     private Point dragOffset;
+    private final WindowControlButton maxBtn;
 
     public TitleBar(String title, JFrame frame) {
         this.frame = frame;
@@ -44,7 +45,7 @@ public final class TitleBar extends JPanel {
         minBtn.setToolTipText("Minimize");
         minBtn.addActionListener(() -> frame.setState(Frame.ICONIFIED));
 
-        WindowControlButton maxBtn = new WindowControlButton(WindowControlButton.Type.MAXIMIZE);
+        maxBtn = new WindowControlButton(WindowControlButton.Type.MAXIMIZE);
         maxBtn.setToolTipText("Maximize");
         maxBtn.addActionListener(() -> {
             if (frame instanceof VyknaShell) {
@@ -70,17 +71,34 @@ public final class TitleBar extends JPanel {
 
         // Drag window
         MouseAdapter drag = new MouseAdapter() {
-            @Override public void mousePressed(MouseEvent e) { dragOffset = e.getPoint(); }
+            @Override public void mousePressed(MouseEvent e) {
+                if (frame instanceof VyknaShell && ((VyknaShell) frame).isMaximized()) {
+                    return;
+                }
+                dragOffset = e.getPoint();
+            }
             @Override public void mouseDragged(MouseEvent e) {
+                if (frame instanceof VyknaShell && ((VyknaShell) frame).isMaximized()) {
+                    return;
+                }
                 if (dragOffset == null) return;
                 Point p = e.getLocationOnScreen();
                 frame.setLocation(p.x - dragOffset.x, p.y - dragOffset.y);
+            }
+            @Override public void mouseReleased(MouseEvent e) {
+                if (frame instanceof VyknaShell) {
+                    ((VyknaShell) frame).updateRestoreBounds();
+                }
             }
         };
         addMouseListener(drag);
         addMouseMotionListener(drag);
         titleLabel.addMouseListener(drag);
         titleLabel.addMouseMotionListener(drag);
+    }
+
+    public void setMaximized(boolean maximized) {
+        maxBtn.setMaximized(maximized);
     }
 
     /**
@@ -93,6 +111,7 @@ public final class TitleBar extends JPanel {
         private boolean hover = false;
         private boolean pressed = false;
         private boolean sidebarClosed = false;
+        private boolean maximized = false;
 
         WindowControlButton(Type type) {
             this.type = type;
@@ -114,6 +133,11 @@ public final class TitleBar extends JPanel {
 
         void setSidebarClosed(boolean closed) {
             this.sidebarClosed = closed;
+            repaint();
+        }
+
+        void setMaximized(boolean maximized) {
+            this.maximized = maximized;
             repaint();
         }
 
@@ -160,7 +184,12 @@ public final class TitleBar extends JPanel {
                         break;
 
                     case MAXIMIZE:
-                        g2.drawRect(cx - 6, cy - 5, 12, 10);
+                        if (maximized) {
+                            g2.drawRect(cx - 5, cy - 5, 10, 8);
+                            g2.drawRect(cx - 7, cy - 3, 10, 8);
+                        } else {
+                            g2.drawRect(cx - 6, cy - 5, 12, 10);
+                        }
                         break;
 
                     case CLOSE:

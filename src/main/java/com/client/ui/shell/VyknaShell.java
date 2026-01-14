@@ -68,6 +68,7 @@ public final class VyknaShell extends JFrame {
     private ResizeDirection resizeDirection = ResizeDirection.NONE;
     private Rectangle restoreBounds;
     private boolean maximized = false;
+    private final TitleBar titleBar;
 
     // Icon tabs
     private IconTabButton homeBtn;
@@ -95,7 +96,7 @@ public final class VyknaShell extends JFrame {
         setContentPane(root);
         installResizeHandler(root);
 
-        TitleBar titleBar = new TitleBar(title, this);
+        titleBar = new TitleBar(title, this);
         root.add(titleBar, BorderLayout.NORTH);
         installResizeHandler(root, titleBar);
 
@@ -388,6 +389,7 @@ public final class VyknaShell extends JFrame {
             public void mouseReleased(MouseEvent e) {
                 resizingWindow = false;
                 resizeDirection = ResizeDirection.NONE;
+                updateRestoreBounds();
             }
 
             @Override
@@ -448,7 +450,21 @@ public final class VyknaShell extends JFrame {
             }
             maximized = false;
         }
+        titleBar.setMaximized(maximized);
+        if (!maximized) {
+            restoreBounds = getBounds();
+        }
         revalidate();
+    }
+
+    boolean isMaximized() {
+        return maximized;
+    }
+
+    void updateRestoreBounds() {
+        if (!maximized) {
+            restoreBounds = getBounds();
+        }
     }
 
     private ResizeDirection getResizeDirection(Point point, JComponent root) {

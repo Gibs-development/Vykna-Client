@@ -58,6 +58,7 @@ public class Settings implements Serializable {
 	private int drawDistance;
 	private boolean stretchedMode;
 	private Dimension stretchedModeDimensions;
+	private Rectangle rs3ViewportBounds;
 	private Map<Integer, Rs3PanelLayout> rs3PanelLayouts;
 
 	public Settings() {}
@@ -229,6 +230,14 @@ public class Settings implements Serializable {
 
 	public void setStretchedModeDimensions(Dimension stretchedModeDimensions) {
 		this.stretchedModeDimensions = stretchedModeDimensions;
+	}
+
+	public Rectangle getRs3ViewportBounds() {
+		return rs3ViewportBounds == null ? null : new Rectangle(rs3ViewportBounds);
+	}
+
+	public void setRs3ViewportBounds(Rectangle rs3ViewportBounds) {
+		this.rs3ViewportBounds = rs3ViewportBounds == null ? null : new Rectangle(rs3ViewportBounds);
 	}
 
 

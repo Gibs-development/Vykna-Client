@@ -293,16 +293,77 @@ public class Client extends RSApplet {
 			newSmallFont.drawBasicString("EDIT MODE", 8, 14, 0xffcc66, 0);
 			drawViewportFrame();
 		}
+		return value;
 	}
 
 	private void ensureRs3ViewportBounds() {
 		if (rs3ViewportBounds == null) {
-			rs3ViewportBounds = new Rectangle(0, 0, currentGameWidth, currentGameHeight);
+			Settings settings = getUserSettings();
+			Rectangle saved = settings == null ? null : settings.getRs3ViewportBounds();
+			rs3ViewportBounds = saved == null ? new Rectangle(0, 0, currentGameWidth, currentGameHeight) : saved;
 		}
 		int maxWidth = Math.max(200, currentGameWidth);
 		int maxHeight = Math.max(200, currentGameHeight);
 		rs3ViewportBounds.width = clamp(rs3ViewportBounds.width, 200, maxWidth);
 		rs3ViewportBounds.height = clamp(rs3ViewportBounds.height, 200, maxHeight);
+		int maxX = Math.max(0, currentGameWidth - rs3ViewportBounds.width);
+		int maxY = Math.max(0, currentGameHeight - rs3ViewportBounds.height);
+		rs3ViewportBounds.x = clamp(rs3ViewportBounds.x, 0, maxX);
+		rs3ViewportBounds.y = clamp(rs3ViewportBounds.y, 0, maxY);
+	}
+
+	public void persistRs3ViewportBounds() {
+		Settings settings = getUserSettings();
+		if (settings == null) {
+			return;
+		}
+		if (rs3ViewportBounds != null) {
+			settings.setRs3ViewportBounds(rs3ViewportBounds);
+		}
+	}
+
+	private Rectangle getViewportBounds() {
+		if (currentScreenMode == ScreenMode.FIXED) {
+			return new Rectangle(0, 0, worldViewportWidth, worldViewportHeight);
+		}
+		if (isRs3InterfaceStyle()) {
+			ensureRs3ViewportBounds();
+			return new Rectangle(rs3ViewportBounds);
+		}
+		return new Rectangle(0, 0, currentGameWidth, currentGameHeight);
+	}
+
+	private void updateUiGraphicsBuffer() {
+		boolean needsUiBuffer = isRs3InterfaceStyle()
+				&& currentScreenMode != ScreenMode.FIXED
+				&& (worldViewportWidth != currentGameWidth || worldViewportHeight != currentGameHeight);
+		if (!needsUiBuffer) {
+			uiGraphicsBuffer = null;
+			return;
+		}
+		if (uiGraphicsBuffer == null
+				|| uiGraphicsBuffer.canvasWidth != currentGameWidth
+				|| uiGraphicsBuffer.canvasHeight != currentGameHeight) {
+			uiGraphicsBuffer = new GraphicsBuffer(currentGameWidth, currentGameHeight);
+		}
+	}
+
+	private void blitViewportToUiBuffer(Rectangle viewport) {
+		if (uiGraphicsBuffer == null || mainGameGraphicsBuffer == null) {
+			return;
+		}
+		int srcWidth = mainGameGraphicsBuffer.canvasWidth;
+		int srcHeight = mainGameGraphicsBuffer.canvasHeight;
+		int dstWidth = uiGraphicsBuffer.canvasWidth;
+		int[] src = mainGameGraphicsBuffer.canvasRaster;
+		int[] dst = uiGraphicsBuffer.canvasRaster;
+		int baseX = Math.max(0, Math.min(viewport.x, dstWidth - srcWidth));
+		int baseY = Math.max(0, Math.min(viewport.y, uiGraphicsBuffer.canvasHeight - srcHeight));
+		for (int y = 0; y < srcHeight; y++) {
+			int srcIndex = y * srcWidth;
+			int dstIndex = (baseY + y) * dstWidth + baseX;
+			System.arraycopy(src, srcIndex, dst, dstIndex, srcWidth);
+		}
 	}
 
 	private void drawViewportFrame() {
@@ -341,6 +402,7 @@ public class Client extends RSApplet {
 		}
 		if (!mouseDown && viewportResizing) {
 			viewportResizing = false;
+			persistRs3ViewportBounds();
 		}
 		if (mouseDown && viewportResizing) {
 			int newWidth = viewportResizeStartWidth + (mouseX - viewportResizeStartX);
@@ -853,6 +915,7 @@ public class Client extends RSApplet {
 		Rasterizer.method365(worldViewportWidth, worldViewportHeight);
 		this.anIntArray1182 = Rasterizer.anIntArray1472;
 		method456();
+		updateUiGraphicsBuffer();
 	}
 
 	/**
@@ -5759,12 +5822,13 @@ public class Client extends RSApplet {
 
 		tabAreaGraphicsBuffer = null;
 		mainGameGraphicsBuffer = null;
+		uiGraphicsBuffer = null;
 		mapAreaGraphicsBuffer = null;
 		leftSideFlame = new RSImageProducer(128, 265, getGameComponent());
 		DrawingArea.setAllPixelsToZero();
 		rightSideFlame = new RSImageProducer(128, 265, getGameComponent());
 		DrawingArea.setAllPixelsToZero();
-		loginScreenGraphicsBuffer = new RSImageProducer(currentGameWidth, currentGameHeight, getGameComponent());
+		loginScreenGraphicsBuffer = new RSImageProducer(ScreenMode.FIXED.getWidth(), ScreenMode.FIXED.getHeight(), getGameComponent());
 		DrawingArea.setAllPixelsToZero();
 		if (titleStreamLoader != null)
 			welcomeScreenRaised = true;
@@ -8162,6 +8226,7 @@ public class Client extends RSApplet {
 		tabAreaGraphicsBuffer = null;
 		mapAreaGraphicsBuffer = null;
 		mainGameGraphicsBuffer = null;
+		uiGraphicsBuffer = null;
 		loginScreenGraphicsBuffer = null;
 		chatAreaGraphicsBuffer = null;
 
@@ -10220,9 +10285,9 @@ public class Client extends RSApplet {
 		mapAreaGraphicsBuffer = new RSImageProducer(249, 168, getGameComponent());
 		DrawingArea.setAllPixelsToZero();
 		tabAreaGraphicsBuffer = new RSImageProducer(249, 335, getGameComponent());
-		mainGameGraphicsBuffer = new GraphicsBuffer(
-				currentScreenMode == ScreenMode.FIXED ? 516 : currentScreenMode.getWidth(),
-				currentScreenMode == ScreenMode.FIXED ? 338 : currentScreenMode.getHeight());
+		mainGameGraphicsBuffer = new GraphicsBuffer(worldViewportWidth, worldViewportHeight);
+		uiGraphicsBuffer = null;
+		updateUiGraphicsBuffer();
 		DrawingArea.setAllPixelsToZero();
 		welcomeScreenRaised = true;
 	}
@@ -17169,7 +17234,10 @@ public class Client extends RSApplet {
 
 
 	public void drawLoginScreen(boolean flag) {
-		int centerX = myWidth / 2, centerY = myHeight / 2;
+		int layoutWidth = ScreenMode.FIXED.getWidth();
+		int layoutHeight = ScreenMode.FIXED.getHeight();
+		int centerX = layoutWidth / 2;
+		int centerY = layoutHeight / 2;
 
 		resetImageProducers();
 		loginScreenGraphicsBuffer.initDrawingArea();
@@ -17228,7 +17296,7 @@ public class Client extends RSApplet {
 
 			newBoldFont.drawString(
 					captchaInput + ((loopCycle % 40 < 20) ? "|" : ""),
-					(myWidth / 2) - 119, myHeight / 2 + 8, 0xffffff, 0x191919, 255);
+					(layoutWidth / 2) - 119, layoutHeight / 2 + 8, 0xffffff, 0x191919, 255);
 
 
 			int exitX = 494;
@@ -17248,12 +17316,12 @@ public class Client extends RSApplet {
 			//
 			newBoldFont.drawString(
 					"user" + myUsername + ((loginScreenCursorPos == 0) & (loopCycle % 40 < 20) ? "|" : ""),
-					(myWidth / 2) - 119, myHeight / 2 - 21, 0xffffff, 0x191919, 255);
+					(layoutWidth / 2) - 119, layoutHeight / 2 - 21, 0xffffff, 0x191919, 255);
 			j += 15;
 			newBoldFont.drawString(
 					"pass " + StringUtils.passwordAsterisks(getPassword())
 							+ ((loginScreenCursorPos == 1) & (loopCycle % 40 < 20) ? "|" : ""),
-					(myWidth / 2) - 119, myHeight / 2 + 31, 0xffffff, 0x191919, 255);
+					(layoutWidth / 2) - 119, layoutHeight / 2 + 31, 0xffffff, 0x191919, 255);
 
 			int rememberYOffset = 6;
 
@@ -17292,12 +17360,12 @@ public class Client extends RSApplet {
 				}
 			}
 
-			loginAsset4.drawARGBSprite2(currentGameWidth / 2 - (336 / 2), 25 + rememberYOffset);
+			loginAsset4.drawARGBSprite2(layoutWidth / 2 - (336 / 2), 25 + rememberYOffset);
 
-			int i1 = myWidth - 80;
-			int l1 = myHeight + 50;
+			int i1 = layoutWidth - 80;
+			int l1 = layoutHeight + 50;
 			newRegularFont.drawString("Register", i1, l1 + 5, 0xffffff, 0x191919, 255);
-			i1 = myWidth / 2 + 80;
+			i1 = layoutWidth / 2 + 80;
 			titleButton.drawBackground(i1 - 73, l1 - 20);
 			newRegularFont.drawString("Login", i1, l1 + 5, 0xffffff, 0x191919, 255);
 		}
@@ -19789,6 +19857,9 @@ public class Client extends RSApplet {
 
     public void render3dWorld() {
         anInt1265++;
+		if (mainGameGraphicsBuffer != null) {
+			mainGameGraphicsBuffer.setCanvas();
+		}
         method47(true);
         method26(true);
         method47(false);
@@ -20016,6 +20087,17 @@ public class Client extends RSApplet {
         drawHeadIcon();
 
         writeBackgroundTexture(k2);
+		if (getUserSettings().isGroundItemOverlay()) {
+            displayGroundItems();
+        }
+
+		boolean useUiBuffer = uiGraphicsBuffer != null;
+		if (useUiBuffer) {
+			Rectangle viewport = getViewportBounds();
+			uiGraphicsBuffer.setCanvas();
+			DrawingArea.setAllPixelsToZero();
+			blitViewportToUiBuffer(viewport);
+		}
 
 		if (loggedIn) {
 			if (!inCutScene) {
@@ -20032,13 +20114,11 @@ public class Client extends RSApplet {
 			draw3dScreen();
 		}
 
-
-		if (getUserSettings().isGroundItemOverlay()) {
-            displayGroundItems();
-        }
-
         processExperienceCounter();
-        mainGameGraphicsBuffer.drawGraphics(0, super.graphics, 0);
+		GraphicsBuffer targetBuffer = useUiBuffer ? uiGraphicsBuffer : mainGameGraphicsBuffer;
+		if (targetBuffer != null) {
+			targetBuffer.drawGraphics(0, super.graphics, 0);
+		}
 
         xCameraPos = l;
         zCameraPos = i1;
@@ -20654,6 +20734,7 @@ public class Client extends RSApplet {
 	private RSImageProducer tabAreaGraphicsBuffer;
 	private RSImageProducer mapAreaGraphicsBuffer;
 	public GraphicsBuffer mainGameGraphicsBuffer;
+	private GraphicsBuffer uiGraphicsBuffer;
 	private RSImageProducer chatAreaGraphicsBuffer;
 	private int daysSinceRecovChange;
 	// Particles
@@ -20795,6 +20876,7 @@ public class Client extends RSApplet {
 		mapAreaGraphicsBuffer = null;
 		tabAreaGraphicsBuffer = null;
 		mainGameGraphicsBuffer = null;
+		uiGraphicsBuffer = null;
 		leftSideFlame = null;
 		rightSideFlame = null;
 		fullGameScreen = new RSImageProducer(765, 503, getGameComponent());

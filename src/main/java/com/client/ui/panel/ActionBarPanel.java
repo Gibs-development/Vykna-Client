@@ -2,7 +2,7 @@ package com.client.ui.panel;
 
 import com.client.Client;
 import com.client.DrawingArea;
-import com.client.Player;
+import com.client.RSInterface;
 
 import java.awt.Rectangle;
 
@@ -24,7 +24,7 @@ public class ActionBarPanel extends PanelManager.BasePanel {
 		int contentWidth = bounds.width - 12;
 		int barWidth = Math.max(60, contentWidth);
 		drawBar(contentX, contentY, barWidth, BAR_HEIGHT, getHealthPercent(client), 0x3a3a3a, 0x8c1f1f);
-		drawBar(contentX, contentY + BAR_HEIGHT + BAR_GAP, barWidth, BAR_HEIGHT, getWrathPercent(client), 0x3a3a3a, 0x1f4f8c);
+		drawBar(contentX, contentY + BAR_HEIGHT + BAR_GAP, barWidth, BAR_HEIGHT, getPrayerPercent(client), 0x3a3a3a, 0x1f4f8c);
 		int slotY = contentY + (BAR_HEIGHT * 2) + (BAR_GAP * 2);
 		drawSlots(contentX, slotY, contentWidth);
 	}
@@ -57,19 +57,39 @@ public class ActionBarPanel extends PanelManager.BasePanel {
 	}
 
 	private int getHealthPercent(Client client) {
-		Player player = client.myPlayer;
-		if (player == null || player.maxHealth <= 0) {
+		RSInterface current = RSInterface.interfaceCache[4016];
+		RSInterface max = RSInterface.interfaceCache[4017];
+		if (current == null || max == null || current.message == null || max.message == null) {
 			return 0;
 		}
-		int current = Math.max(0, Math.min(player.currentHealth, player.maxHealth));
-		return (int) ((current / (double) player.maxHealth) * 100);
+		try {
+			int currentHp = Integer.parseInt(current.message);
+			int maxHp = Integer.parseInt(max.message);
+			if (maxHp <= 0) {
+				return 0;
+			}
+			int clamped = Math.max(0, Math.min(currentHp, maxHp));
+			return (int) ((clamped / (double) maxHp) * 100);
+		} catch (NumberFormatException e) {
+			return 0;
+		}
 	}
 
-	private int getWrathPercent(Client client) {
-		Player player = client.myPlayer;
-		if (player == null) {
+	private int getPrayerPercent(Client client) {
+		RSInterface current = RSInterface.interfaceCache[4012];
+		if (current == null || current.message == null) {
 			return 0;
 		}
-		return Math.max(0, Math.min(player.pressureDisplayed, 100));
+		try {
+			int currentPrayer = Integer.parseInt(current.message.replaceAll("%", ""));
+			int maxPrayer = client.maxStats[5];
+			if (maxPrayer <= 0) {
+				return 0;
+			}
+			int clamped = Math.max(0, Math.min(currentPrayer, maxPrayer));
+			return (int) ((clamped / (double) maxPrayer) * 100);
+		} catch (NumberFormatException e) {
+			return 0;
+		}
 	}
 }
