@@ -946,6 +946,18 @@ public class Client extends RSApplet {
 		 */
 		newSmallFont.drawCenteredString(""+dateFormat.format(new Date().getTime()), xOffset + 459, buttonTimeY, 0xffffff, 0);
 
+		smallText.method389(true, buttonBaseX + 26, 0xffffff, "All", buttonTimeY);
+		smallText.method389(true, buttonBaseX + 86, 0xffffff, "Game", buttonLabelY);
+		smallText.method389(true, buttonBaseX + 150, 0xffffff, "Public", buttonLabelY);
+		smallText.method389(true, buttonBaseX + 212, 0xffffff, "Private", buttonLabelY);
+		smallText.method389(true, buttonBaseX + 286, 0xffffff, "Clan", buttonLabelY);
+		smallText.method389(true, buttonBaseX + 349, 0xffffff, "Trade", buttonLabelY);
+		smallText.method382(textColor[gameMode], buttonBaseX + 98, text[gameMode], buttonStatusY, true);
+		smallText.method382(textColor[publicChatMode], buttonBaseX + 164, text[publicChatMode], buttonStatusY, true);
+		smallText.method382(textColor[privateChatMode], buttonBaseX + 230, text[privateChatMode], buttonStatusY, true);
+		smallText.method382(textColor[clanChatMode], buttonBaseX + 296, text[clanChatMode], buttonStatusY, true);
+		smallText.method382(textColor[tradeMode], buttonBaseX + 362, text[tradeMode], buttonStatusY, true);
+	}
 
 		smallText.method389(true, buttonBaseX + 26, 0xffffff, "All", buttonTimeY);
 		smallText.method389(true, buttonBaseX + 86, 0xffffff, "Game", buttonLabelY);
