@@ -22,6 +22,7 @@ public class Settings implements Serializable {
 		settings.interfaceStyle = InterfaceStyle.OSRS;
 		settings.rs3EditMode = false;
 		settings.rs3PanelBackgroundColor = 0x141414;
+		settings.rs3InterfaceTransparency = 0;
 		settings.oldGameframe = false;
 		settings.gameTimers = true;
 		settings.antiAliasing = false;
@@ -42,6 +43,7 @@ public class Settings implements Serializable {
 	private InterfaceStyle interfaceStyle;
 	private boolean rs3EditMode;
 	private int rs3PanelBackgroundColor;
+	private int rs3InterfaceTransparency;
 	private boolean gameTimers;
 	private boolean antiAliasing;
 	private boolean groundItemOverlay;
@@ -90,6 +92,14 @@ public class Settings implements Serializable {
 
 	public void setRs3PanelBackgroundColor(int rs3PanelBackgroundColor) {
 		this.rs3PanelBackgroundColor = rs3PanelBackgroundColor;
+	}
+
+	public int getRs3InterfaceTransparency() {
+		return rs3InterfaceTransparency;
+	}
+
+	public void setRs3InterfaceTransparency(int rs3InterfaceTransparency) {
+		this.rs3InterfaceTransparency = rs3InterfaceTransparency;
 	}
 
 	public Map<Integer, Rs3PanelLayout> getRs3PanelLayouts() {

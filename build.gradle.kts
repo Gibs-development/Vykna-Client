@@ -93,6 +93,7 @@ tasks.test {
 
 tasks.register<Jar>("createStandardJar") {
     archiveFileName.set("NotObfuscatedClient.jar")
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
     from(sourceSets["main"].output)
     manifest {
         attributes["Main-Class"] = "com.client.Client"
@@ -122,4 +123,3 @@ tasks.register("buildJars") {
     dependsOn("createStandardJar")
     dependsOn("obfuscateStandard")
 }
-
