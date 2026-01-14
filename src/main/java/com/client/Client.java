@@ -116,6 +116,9 @@ public class Client extends RSApplet {
 	private int rs3ChatBaseY;
 	private int rs3ChatWidth;
 	private int rs3ChatHeight;
+	private Rectangle rs3ChatHeaderRect;
+	private Rectangle rs3ChatMessageRect;
+	private Rectangle rs3ChatInputRect;
 	public String lastViewedDropTable;
 	private static final int CUTSCENE_FIXED_ZOOM_BONUS = 350;
 	// Fade behaviour
@@ -309,6 +312,12 @@ public class Client extends RSApplet {
 		rs3ChatHeight = height;
 		drawChatArea();
 		rs3ChatOverride = false;
+	}
+
+	public void setRs3ChatLayout(Rectangle headerRect, Rectangle messageRect, Rectangle inputRect) {
+		rs3ChatHeaderRect = headerRect == null ? null : new Rectangle(headerRect);
+		rs3ChatMessageRect = messageRect == null ? null : new Rectangle(messageRect);
+		rs3ChatInputRect = inputRect == null ? null : new Rectangle(inputRect);
 	}
 
 	public void drawOrbsAt(int x, int y) {
@@ -951,6 +960,53 @@ public class Client extends RSApplet {
 		smallText.method382(textColor[tradeMode], buttonBaseX + 362, text[tradeMode], buttonStatusY, true);
 	}
 
+	private void drawRs3ChatButtons(Rectangle headerRect) {
+		Rectangle[] buttons = getRs3ChatButtonBounds(headerRect);
+		if (buttons == null) {
+			return;
+		}
+		String[] labels = { "All", "Game", "Public", "Private", "Clan", "Trade" };
+		for (int index = 0; index < buttons.length; index++) {
+			Rectangle button = buttons[index];
+			boolean active = channelButtonClickPosition == index;
+			boolean hover = channelButtonHoverPosition == index;
+			int background = active ? 0x2a2a2a : 0x1a1a1a;
+			if (hover) {
+				background = active ? 0x353535 : 0x2a2a2a;
+			}
+			DrawingArea.drawPixels(button.height, button.y, button.x, background, button.width);
+			DrawingArea.drawPixels(1, button.y, button.x, 0x2c2c2c, button.width);
+			DrawingArea.drawPixels(1, button.y + button.height - 1, button.x, 0x2c2c2c, button.width);
+			DrawingArea.drawPixels(button.height, button.y, button.x, 0x2c2c2c, 1);
+			DrawingArea.drawPixels(button.height, button.y, button.x + button.width - 1, 0x2c2c2c, 1);
+			if (index < labels.length) {
+				newSmallFont.drawCenteredString(labels[index], button.x + button.width / 2,
+						button.y + button.height - 7, 0xffffff, 0);
+			}
+		}
+	}
+
+	private Rectangle[] getRs3ChatButtonBounds(Rectangle headerRect) {
+		if (headerRect == null) {
+			return null;
+		}
+		int buttonCount = 6;
+		int gap = 4;
+		int totalGap = gap * (buttonCount - 1);
+		int buttonWidth = Math.max(40, (headerRect.width - totalGap) / buttonCount);
+		int totalWidth = buttonWidth * buttonCount + totalGap;
+		int startX = headerRect.x + Math.max(0, (headerRect.width - totalWidth) / 2);
+		int y = headerRect.y;
+		int height = headerRect.height;
+		Rectangle[] buttons = new Rectangle[buttonCount];
+		for (int index = 0; index < buttonCount; index++) {
+			int width = index == buttonCount - 1 ? headerRect.x + headerRect.width - startX : buttonWidth;
+			buttons[index] = new Rectangle(startX, y, Math.max(0, width), height);
+			startX += buttonWidth + gap;
+		}
+		return buttons;
+	}
+
 	ItemSearch grandExchangeItemSearch = null;
 
 	public static int grandExchangeSearchScrollPostion;
@@ -976,11 +1032,38 @@ public class Client extends RSApplet {
 		final int xOffset = rs3ChatOverride ? rs3ChatBaseX : 0;
 		final int yOffset = rs3ChatOverride ? rs3ChatBaseY : (currentScreenMode == ScreenMode.FIXED ? 0 : currentGameHeight - chatAreaHeight);
 		final int yOffset2 = rs3ChatOverride ? rs3ChatBaseY : (currentScreenMode == ScreenMode.FIXED ? 338 : 0);
+		Rectangle headerRect = null;
+		Rectangle messageRect = null;
+		Rectangle inputRect = null;
+		if (rs3ChatOverride) {
+			headerRect = rs3ChatHeaderRect;
+			messageRect = rs3ChatMessageRect;
+			inputRect = rs3ChatInputRect;
+			if (headerRect == null || messageRect == null || inputRect == null) {
+				int padding = 4;
+				int headerHeight = 24;
+				int inputHeight = 22;
+				headerRect = new Rectangle(xOffset + padding, yOffset + padding, Math.max(0, chatAreaWidth - padding * 2), headerHeight);
+				inputRect = new Rectangle(xOffset + padding,
+						yOffset + chatAreaHeight - inputHeight - padding,
+						Math.max(0, chatAreaWidth - padding * 2),
+						inputHeight);
+				int messageTop = headerRect.y + headerRect.height + padding;
+				int messageBottom = inputRect.y - padding;
+				int messageHeight = Math.max(0, messageBottom - messageTop);
+				messageRect = new Rectangle(xOffset + padding, messageTop, Math.max(0, chatAreaWidth - padding * 2), messageHeight);
+			}
+		}
 
 		Rasterizer.anIntArray1472 = anIntArray1180;
 
-		if (hideChatArea)
-			drawChannelButtons(xOffset, yOffset);
+		if (hideChatArea) {
+			if (rs3ChatOverride) {
+				drawRs3ChatButtons(headerRect);
+			} else {
+				drawChannelButtons(xOffset, yOffset);
+			}
+		}
 
 		if (!hideChatArea) {
 			if (!rs3ChatOverride) {
@@ -988,16 +1071,34 @@ public class Client extends RSApplet {
 			} else {
 				DrawingArea.drawPixels(chatAreaHeight, yOffset, xOffset, 0x141414, chatAreaWidth);
 			}
-			drawChannelButtons(xOffset, yOffset);
-			drawChannelBar(xOffset, yOffset);
-			if (isRs3InterfaceStyle() && rs3ChatOverride) {
+			if (rs3ChatOverride) {
+				drawRs3ChatButtons(headerRect);
+			} else {
+				drawChannelButtons(xOffset, yOffset);
+			}
+			if (rs3ChatOverride && messageRect != null) {
+				drawChannelBar(messageRect.x - 10, messageRect.y - 5);
+			} else {
+				drawChannelBar(xOffset, yOffset);
+			}
+			if (isRs3InterfaceStyle() && rs3ChatOverride && inputRect != null) {
 				String label = rs3ChatInputMode ? "CHAT INPUT" : "PRESS ENTER TO CHAT";
 				int color = rs3ChatInputMode ? 0xffd24a : 0xaaaaaa;
-				newSmallFont.drawBasicString(label, xOffset + 10, yOffset + chatAreaHeight - 6, color, 0);
+				int clipLeft = DrawingArea.topX;
+				int clipTop = DrawingArea.topY;
+				int clipRight = DrawingArea.bottomX;
+				int clipBottom = DrawingArea.bottomY;
+				DrawingArea.setDrawingArea(inputRect.y + inputRect.height, inputRect.x, inputRect.x + inputRect.width, inputRect.y);
+				newSmallFont.drawBasicString(label, inputRect.x + 4, inputRect.y + inputRect.height - 6, color, 0);
+				DrawingArea.setDrawingArea(clipBottom, clipLeft, clipRight, clipTop);
 			}
 			TextDrawingArea textDrawingArea = aTextDrawingArea_1271;
 			int focusTop = rs3ChatOverride ? yOffset + 1 : (currentScreenMode == ScreenMode.FIXED ? 335 : currentGameHeight - 164);
 			int focusBottom = rs3ChatOverride ? yOffset + chatAreaHeight - 30 : (currentScreenMode == ScreenMode.FIXED ? 484 : currentGameHeight - 30);
+			if (rs3ChatOverride && messageRect != null) {
+				focusTop = messageRect.y;
+				focusBottom = messageRect.y + messageRect.height;
+			}
 			if (super.getSaveClickX() >= xOffset && super.getSaveClickX() <= xOffset + chatAreaWidth + 2) {
 				if (super.getSaveClickY() >= focusTop && super.getSaveClickY() <= focusBottom) {
 					if (this.isFieldInFocus()) {
@@ -1103,6 +1204,17 @@ public class Client extends RSApplet {
 				int messageClipBottom = messageClipTop + messageAreaHeight;
 				int messageClipLeft = xOffset + 8;
 				int messageClipRight = xOffset + chatAreaWidth - 8;
+				int messageBaseX = xOffset;
+				int messageBaseY = yOffset;
+				if (rs3ChatOverride && messageRect != null) {
+					messageAreaHeight = messageRect.height;
+					messageClipTop = messageRect.y;
+					messageClipBottom = messageRect.y + messageRect.height;
+					messageClipLeft = messageRect.x;
+					messageClipRight = messageRect.x + messageRect.width;
+					messageBaseX = messageRect.x + 2;
+					messageBaseY = messageRect.y - 7;
+				}
 				DrawingArea.setDrawingArea(messageClipBottom, messageClipLeft, messageClipRight, messageClipTop);
 				for (int k = 0; k < 500; k++)
 					if (chatMessages[k] != null) {
@@ -1124,10 +1236,10 @@ public class Client extends RSApplet {
 							}
 						}
 						if (chatType == 0) {
-							if (chatTypeView == 5 || chatTypeView == 0) {
-								if (yPos > 0 && yPos < messageAreaHeight) {
-									newRegularFont.drawBasicString(chatMessages[k], xOffset + 10, yPos - 1 + yOffset, 0, -1);
-								}
+								if (chatTypeView == 5 || chatTypeView == 0) {
+									if (yPos > 0 && yPos < messageAreaHeight) {
+										newRegularFont.drawBasicString(chatMessages[k], messageBaseX + 10, yPos - 1 + messageBaseY, 0, -1);
+									}
 								j++;
 								j77++;
 							}
@@ -1135,14 +1247,14 @@ public class Client extends RSApplet {
 						if ((chatType == 1 || chatType == 2) && (chatType == 1 || publicChatMode == 0
 								|| publicChatMode == 1 && isFriendOrSelf(s1))) {
 							if (chatTypeView == 1 || chatTypeView == 0) {
-								if (yPos > 0 && yPos < messageAreaHeight) {
-									int xPos = xOffset + 11;
+									if (yPos > 0 && yPos < messageAreaHeight) {
+										int xPos = messageBaseX + 11;
 									if (!crowns.isEmpty()) {
 										for (int crown : crowns) {
 											for (int right = 0; right < modIcons.length; right++) {
 												if (right == (crown - 1) && modIcons[right] != null) {
-													modIcons[right].drawAdvancedSprite(xPos - 1,
-															yPos + yOffset - modIcons[right].myHeight);
+														modIcons[right].drawAdvancedSprite(xPos - 1,
+																yPos + messageBaseY - modIcons[right].myHeight);
 													xPos += modIcons[right].myWidth;
 													xPos += 2;
 													break;
@@ -1150,9 +1262,9 @@ public class Client extends RSApplet {
 											}
 										}
 									}
-									newRegularFont.drawBasicString(s1 + ":", xPos - 1, yPos - 1 + yOffset, 0, -1);
+										newRegularFont.drawBasicString(s1 + ":", xPos - 1, yPos - 1 + messageBaseY, 0, -1);
 									xPos += newRegularFont.getTextWidth(s1) + 5;
-									newRegularFont.drawBasicString(chatMessages[k], xPos - 1, yPos - 1 + yOffset, 255, -1, false);
+										newRegularFont.drawBasicString(chatMessages[k], xPos - 1, yPos - 1 + messageBaseY, 255, -1, false);
 								}
 								j++;
 								j77++;
@@ -1160,10 +1272,10 @@ public class Client extends RSApplet {
 						}
 
 						if (chatType == 99) {
-							if (yPos > 0 && yPos < messageAreaHeight) {
-								lastViewedDropTable = chatMessages[k];
-								newRegularFont.drawBasicString(s1 + " " + chatMessages[k], xOffset + 10, yPos - 1 + yOffset, 0x7e3200, -1, false);
-							}
+								if (yPos > 0 && yPos < messageAreaHeight) {
+									lastViewedDropTable = chatMessages[k];
+									newRegularFont.drawBasicString(s1 + " " + chatMessages[k], messageBaseX + 10, yPos - 1 + messageBaseY, 0x7e3200, -1, false);
+								}
 							j++;
 							j77++;
 						}
@@ -1172,35 +1284,35 @@ public class Client extends RSApplet {
 						if ((chatType == 3 || chatType == 7) && (!splitPrivateChat || chatTypeView == 2)
 								&& (chatType == 7 || privateChatMode == 0
 								|| privateChatMode == 1 && isFriendOrSelf(s1))) {
-							if (chatTypeView == 2 || chatTypeView == 0) {
-								if (yPos > 0 && yPos < messageAreaHeight) {
-									int k1 = xOffset + 11;
-									newRegularFont.drawBasicString("From", k1, yPos - 1 + yOffset, 0, -1);
+								if (chatTypeView == 2 || chatTypeView == 0) {
+									if (yPos > 0 && yPos < messageAreaHeight) {
+										int k1 = messageBaseX + 11;
+										newRegularFont.drawBasicString("From", k1, yPos - 1 + messageBaseY, 0, -1);
 									k1 += textDrawingArea.getTextWidth("From ");
 									if (!crowns.isEmpty()) {
 										for (int crown : crowns) {
 											for (int right = 0; right < modIcons.length; right++) {
 												if (right == (crown - 1) && modIcons[right] != null) {
 													modIcons[right].drawAdvancedSprite(k1,
-															yPos + yOffset - modIcons[right].myHeight);
+															yPos + messageBaseY - modIcons[right].myHeight);
 													k1 += modIcons[right].myWidth;
 													break;
 												}
 											}
 										}
 									}
-									newRegularFont.drawBasicString(s1 + ":", k1, yPos - 1 + yOffset, 0, -1);
+										newRegularFont.drawBasicString(s1 + ":", k1, yPos - 1 + messageBaseY, 0, -1);
 									k1 += newRegularFont.getTextWidth(s1) + 8;
-									newRegularFont.drawBasicString(chatMessages[k], k1, yPos - 1 + yOffset, 0x800000, -1, false);
+										newRegularFont.drawBasicString(chatMessages[k], k1, yPos - 1 + messageBaseY, 0x800000, -1, false);
 								}
 								j++;
 								j77++;
 							}
 						}
 						if (chatType == 4 && (tradeMode == 0 || tradeMode == 1 && isFriendOrSelf(s1))) {
-							if (chatTypeView == 3 || chatTypeView == 0) {
-								if (yPos > 0 && yPos < messageAreaHeight)
-									newRegularFont.drawBasicString(s1 + " " + chatMessages[k], xOffset + 11, yPos - 1 + yOffset, 0x800080, -1, false);
+								if (chatTypeView == 3 || chatTypeView == 0) {
+									if (yPos > 0 && yPos < messageAreaHeight)
+										newRegularFont.drawBasicString(s1 + " " + chatMessages[k], messageBaseX + 11, yPos - 1 + messageBaseY, 0x800080, -1, false);
 								j++;
 								j77++;
 							}
@@ -1208,33 +1320,33 @@ public class Client extends RSApplet {
 						if (chatType == 31 && (tradeMode == 0 || tradeMode == 1 && isFriendOrSelf(s1))) {
 							int crownId = 29;
 							if (chatTypeView == 3 || chatTypeView == 0) {
-								if (yPos > 0 && yPos < messageAreaHeight) {
-									int xPos = xOffset + 11;
-									modIcons[crownId].drawAdvancedSprite(xPos - 1, yPos + yOffset - modIcons[crownId].myHeight);
-									xPos += modIcons[crownId].myWidth;
-									newRegularFont.drawBasicString(s1 + " " + chatMessages[k], xPos - 1, yPos - 1 + yOffset, 0x1950ce, -1, false);
-								}
+									if (yPos > 0 && yPos < messageAreaHeight) {
+										int xPos = messageBaseX + 11;
+										modIcons[crownId].drawAdvancedSprite(xPos - 1, yPos + messageBaseY - modIcons[crownId].myHeight);
+										xPos += modIcons[crownId].myWidth;
+										newRegularFont.drawBasicString(s1 + " " + chatMessages[k], xPos - 1, yPos - 1 + messageBaseY, 0x1950ce, -1, false);
+									}
 								j++;
 								j77++;
 							}
 						}
 						if (chatType == 5 && !splitPrivateChat && privateChatMode < 2) {
-							if (chatTypeView == 2 || chatTypeView == 0) {
-								if (yPos > 0 && yPos < messageAreaHeight)
-									newRegularFont.drawBasicString(chatMessages[k], xOffset + 10, yPos - 1 + yOffset, 0x800000, -1, false);
+								if (chatTypeView == 2 || chatTypeView == 0) {
+									if (yPos > 0 && yPos < messageAreaHeight)
+										newRegularFont.drawBasicString(chatMessages[k], messageBaseX + 10, yPos - 1 + messageBaseY, 0x800000, -1, false);
 								j++;
 								j77++;
 							}
 						}
 						if (chatType == 6 && (!splitPrivateChat || chatTypeView == 2) && privateChatMode < 2) {
-							if (chatTypeView == 2 || chatTypeView == 0) {
-								if (yPos > 0 && yPos < messageAreaHeight) {
-									int k1 = xOffset + 15;
-									k1 += textDrawingArea.getTextWidth("To " + s1);
-									newRegularFont.drawBasicString("To " + s1 + ":", xOffset + 10, yPos - 1 + yOffset, 0, -1);
+								if (chatTypeView == 2 || chatTypeView == 0) {
+									if (yPos > 0 && yPos < messageAreaHeight) {
+										int k1 = messageBaseX + 15;
+										k1 += textDrawingArea.getTextWidth("To " + s1);
+										newRegularFont.drawBasicString("To " + s1 + ":", messageBaseX + 10, yPos - 1 + messageBaseY, 0, -1);
 									// newRegularFont.drawBasicString(chatMessages[k], 15 +
 									// newRegularFont.getTextWidth("To :" + s1), yPos, 0x800000, -1);
-									newRegularFont.drawBasicString(chatMessages[k], k1, yPos - 1 + yOffset, 0x800000, -1, false);
+										newRegularFont.drawBasicString(chatMessages[k], k1, yPos - 1 + messageBaseY, 0x800000, -1, false);
 								}
 								j++;
 								j77++;
@@ -1250,8 +1362,8 @@ public class Client extends RSApplet {
 										String clanChatMessage = chatMessages[k];
 										String chatMessage = clanChatMessage.substring(clanChatMessage.indexOf(lastChatNameEnd) + lastChatNameEnd.length());
 										String usernameAndFormatting = clanChatMessage.substring(0, clanChatMessage.indexOf(lastChatNameEnd) + lastChatNameEnd.length());
-										newRegularFont.drawBasicString(usernameAndFormatting, xOffset + 8, yPos - 1 + yOffset, 0x7e3200, -1, true);
-										newRegularFont.drawBasicString(chatMessage, xOffset + newRegularFont.getTextWidth(usernameAndFormatting) + 8, yPos - 1 + yOffset, 0x7e3200, -1, false);
+											newRegularFont.drawBasicString(usernameAndFormatting, messageBaseX + 8, yPos - 1 + messageBaseY, 0x7e3200, -1, true);
+											newRegularFont.drawBasicString(chatMessage, messageBaseX + newRegularFont.getTextWidth(usernameAndFormatting) + 8, yPos - 1 + messageBaseY, 0x7e3200, -1, false);
 									} catch (Exception e) {
 										e.printStackTrace();
 									}
@@ -1261,48 +1373,69 @@ public class Client extends RSApplet {
 							}
 						}
 						if (chatType == 13 && chatTypeView == 12) {
-							if (yPos > 0 && yPos < messageAreaHeight)
-								newRegularFont.drawBasicString(s1 + " " + chatMessages[k], xOffset + 8, yPos - 1 + yOffset, 0x7e3200, -1, false);
+								if (yPos > 0 && yPos < messageAreaHeight)
+									newRegularFont.drawBasicString(s1 + " " + chatMessages[k], messageBaseX + 8, yPos - 1 + messageBaseY, 0x7e3200, -1, false);
 							j++;
 							j77++;
 						}
 						if (chatType == 8 && (tradeMode == 0 || tradeMode == 1 && isFriendOrSelf(s1))) {
-							if (chatTypeView == 3 || chatTypeView == 0) {
-								if (yPos > 0 && yPos < messageAreaHeight)
-									newRegularFont.drawBasicString(s1 + " " + chatMessages[k], xOffset + 10, yPos - 1 + yOffset, 0x7e3200, -1, false);
+								if (chatTypeView == 3 || chatTypeView == 0) {
+									if (yPos > 0 && yPos < messageAreaHeight)
+										newRegularFont.drawBasicString(s1 + " " + chatMessages[k], messageBaseX + 10, yPos - 1 + messageBaseY, 0x7e3200, -1, false);
 								j++;
 								j77++;
 							}
 						}
 						if (chatType == 16) {
-							int j2 = xOffset + 51;
-							String clanname = clanList[k];
-							int clanNameWidth = textDrawingArea.getTextWidth(clanname);
-							if (chatTypeView == 11 || chatTypeView == 0) {
-								newRegularFont.drawBasicString("[", xOffset + 19, yPos - 1 + yOffset, 0, -1);
-								newRegularFont.drawBasicString("]", xOffset + clanNameWidth + 26, yPos - 1 + yOffset, 0, -1);
-								newRegularFont.drawBasicString("" + capitalize(clanname) + "", xOffset + 25, yPos - 1 + yOffset,
-										255, -1);
-								newRegularFont.drawBasicString(chatNames[k] + ":", j2 - 17, yPos);
-								j2 += newRegularFont.getTextWidth(chatNames[k]) + 7;
-								newRegularFont.drawBasicString(capitalize(chatMessages[k]), j2 - 16, yPos - 1 + yOffset, 0x800000, -1);
+								int j2 = messageBaseX + 51;
+								String clanname = clanList[k];
+								int clanNameWidth = textDrawingArea.getTextWidth(clanname);
+								if (chatTypeView == 11 || chatTypeView == 0) {
+									newRegularFont.drawBasicString("[", messageBaseX + 19, yPos - 1 + messageBaseY, 0, -1);
+									newRegularFont.drawBasicString("]", messageBaseX + clanNameWidth + 26, yPos - 1 + messageBaseY, 0, -1);
+									newRegularFont.drawBasicString("" + capitalize(clanname) + "", messageBaseX + 25, yPos - 1 + messageBaseY,
+											255, -1);
+									newRegularFont.drawBasicString(chatNames[k] + ":", j2 - 17, yPos);
+									j2 += newRegularFont.getTextWidth(chatNames[k]) + 7;
+									newRegularFont.drawBasicString(capitalize(chatMessages[k]), j2 - 16, yPos - 1 + messageBaseY, 0x800000, -1);
 
 								j++;
 								j77++;
 							}
 						}
 					}
-				DrawingArea.defaultDrawingAreaSize();
-				chatAreaScrollLength = j * 14 + 7 + 5;
-				int scrollHeight = getChatScrollHeight(chatAreaHeight);
-				if (chatAreaScrollLength < scrollHeight - 3)
-					chatAreaScrollLength = scrollHeight - 3;
-				drawScrollbar(scrollHeight, chatAreaScrollLength - anInt1089 - (scrollHeight - 1), 6 + yOffset, xOffset + chatAreaWidth - 20, chatAreaScrollLength);
-				DrawingArea.setDrawingArea(yOffset + chatAreaHeight, xOffset, xOffset + chatAreaWidth, yOffset);
-				String fixedString;
-				if (myPlayer != null && myPlayer.displayName != null) {
-					if (myPlayer.title.length() > 0) {
-						fixedString = "<col=" + myPlayer.titleColor + ">" + myPlayer.title + "</col>" + " "
+					DrawingArea.defaultDrawingAreaSize();
+					chatAreaScrollLength = j * 14 + 7 + 5;
+					int scrollHeight = getChatScrollHeight(chatAreaHeight);
+					int scrollX = xOffset + chatAreaWidth - 20;
+					int scrollY = 6 + yOffset;
+					if (rs3ChatOverride && messageRect != null) {
+						scrollHeight = messageRect.height;
+						scrollX = messageRect.x + messageRect.width - 12;
+						scrollY = messageRect.y;
+					}
+					if (chatAreaScrollLength < scrollHeight - 3)
+						chatAreaScrollLength = scrollHeight - 3;
+					drawScrollbar(scrollHeight, chatAreaScrollLength - anInt1089 - (scrollHeight - 1), scrollY, scrollX, chatAreaScrollLength);
+					int inputBaseX = xOffset;
+					int inputTextY = 133 + yOffset;
+					int inputIconY = 134 + yOffset;
+					int inputLineY = 120 + yOffset;
+					int lineWidth = rs3ChatOverride ? Math.max(100, getChatAreaWidth() - 10) : 506;
+					if (rs3ChatOverride && inputRect != null) {
+						inputBaseX = inputRect.x;
+						inputTextY = inputRect.y + inputRect.height - 6;
+						inputIconY = inputRect.y + inputRect.height - 8;
+						inputLineY = inputRect.y + 2;
+						lineWidth = Math.max(60, inputRect.width - 6);
+						DrawingArea.setDrawingArea(inputRect.y + inputRect.height, inputRect.x, inputRect.x + inputRect.width, inputRect.y);
+					} else {
+						DrawingArea.setDrawingArea(yOffset + chatAreaHeight, xOffset, xOffset + chatAreaWidth, yOffset);
+					}
+					String fixedString;
+					if (myPlayer != null && myPlayer.displayName != null) {
+						if (myPlayer.title.length() > 0) {
+							fixedString = "<col=" + myPlayer.titleColor + ">" + myPlayer.title + "</col>" + " "
 								+ myPlayer.displayName;
 					} else {
 						fixedString = myPlayer.displayName;
@@ -1316,32 +1449,32 @@ public class Client extends RSApplet {
 				else
 					s = StringUtils.fixName(capitalize(myUsername));
 
-				int nameOffset = 0;
-				if (myPlayer.hasRightsOtherThan(PlayerRights.PLAYER)) {
-					for (PlayerRights right : myPlayer.getDisplayedRights()) {
-						if (right.hasCrown()) {
-							modIcons[right.spriteId()].drawSprite(xOffset + 9 + nameOffset, 134 + yOffset - modIcons[right.spriteId()].myHeight);
-							nameOffset += modIcons[right.spriteId()].myWidth;
-							nameOffset += 2;
+					int nameOffset = 0;
+					if (myPlayer.hasRightsOtherThan(PlayerRights.PLAYER)) {
+						for (PlayerRights right : myPlayer.getDisplayedRights()) {
+							if (right.hasCrown()) {
+								modIcons[right.spriteId()].drawSprite(inputBaseX + 9 + nameOffset,
+										inputIconY - modIcons[right.spriteId()].myHeight);
+								nameOffset += modIcons[right.spriteId()].myWidth;
+								nameOffset += 2;
+							}
 						}
+
+						newRegularFont.drawBasicString(fixedString, inputBaseX + 10 + nameOffset, inputTextY, 0, -1);
+					} else {
+						newRegularFont.drawBasicString(fixedString, inputBaseX + 10 + nameOffset, inputTextY, 0, -1);
 					}
 
-					newRegularFont.drawBasicString(fixedString, xOffset + 10 + nameOffset, 133 + yOffset, 0, -1);
-				} else {
-					newRegularFont.drawBasicString(fixedString, xOffset + 10 + nameOffset, 133 + yOffset, 0, -1);
+					nameOffset += newRegularFont.getTextWidth(fixedString) + 10;
+					newRegularFont.drawBasicString(": ", inputBaseX + nameOffset, inputTextY, 0, -1);
+					nameOffset += textDrawingArea.getTextWidth(": ");
+
+					if (!isFieldInFocus()) {
+						newRegularFont.drawBasicString(inputString + "*", inputBaseX + nameOffset, inputTextY, 255, -1, false);
+					}
+
+					DrawingArea.method339(inputLineY, 0x807660, lineWidth, inputBaseX + 7);
 				}
-
-				nameOffset += newRegularFont.getTextWidth(fixedString) + 10;
-				newRegularFont.drawBasicString(": ", xOffset + nameOffset, 133 + yOffset, 0, -1);
-				nameOffset += textDrawingArea.getTextWidth(": ");
-
-				if (!isFieldInFocus()) {
-					newRegularFont.drawBasicString(inputString + "*", xOffset + nameOffset, 133 + yOffset, 255, -1, false);
-				}
-
-				int lineWidth = rs3ChatOverride ? Math.max(100, getChatAreaWidth() - 10) : 506;
-				DrawingArea.method339(120 + yOffset, 0x807660, lineWidth, xOffset + 7);
-			}
 
 		}
 		DrawingArea.defaultDrawingAreaSize();
@@ -1374,9 +1507,18 @@ public class Client extends RSApplet {
 		if (backDialogID != -1 || inputDialogState == 3) {
 			return;
 		}
+		if (rs3ChatOverride && rs3ChatMessageRect != null) {
+			baseX = rs3ChatMessageRect.x;
+			baseY = rs3ChatMessageRect.y;
+			width = rs3ChatMessageRect.width;
+			height = rs3ChatMessageRect.height;
+		}
 		int chatAreaWidth = width;
 		int chatAreaHeight = height;
 		int scrollHeight = getChatScrollHeight(chatAreaHeight);
+		if (rs3ChatOverride && rs3ChatMessageRect != null) {
+			scrollHeight = Math.max(40, chatAreaHeight);
+		}
 		int scrollInputHeight = Math.max(80, scrollHeight - 4);
 		aClass9_1059.scrollPosition = chatAreaScrollLength - anInt1089 - scrollInputHeight;
 		int scrollTop = baseY + (currentScreenMode == ScreenMode.FIXED ? 4 : 6);
@@ -3059,7 +3201,58 @@ public class Client extends RSApplet {
 	}
 
 	public void processRs3ChatModeClick(int mouseX, int mouseY, int clickX, int clickY, boolean clicked, int baseX, int baseY, int width, int height) {
-		processChatModeClick(mouseX, mouseY, clickX, clickY, clicked, baseX, baseY, width, height);
+		if (!rs3ChatOverride || rs3ChatHeaderRect == null) {
+			processChatModeClick(mouseX, mouseY, clickX, clickY, clicked, baseX, baseY, width, height);
+			return;
+		}
+		Rectangle[] buttons = getRs3ChatButtonBounds(rs3ChatHeaderRect);
+		if (buttons == null) {
+			return;
+		}
+		channelButtonHoverPosition = -1;
+		for (int index = 0; index < buttons.length; index++) {
+			if (buttons[index].contains(mouseX, mouseY)) {
+				channelButtonHoverPosition = index;
+				inputTaken = true;
+				break;
+			}
+		}
+		if (!clicked) {
+			return;
+		}
+		for (int index = 0; index < buttons.length; index++) {
+			if (!buttons[index].contains(clickX, clickY)) {
+				continue;
+			}
+			if (channelButtonClickPosition == index) {
+				toggleHideChatArea();
+			}
+			channelButtonClickPosition = index;
+			switch (index) {
+				case 0:
+					chatTypeView = 0;
+					break;
+				case 1:
+					chatTypeView = 5;
+					break;
+				case 2:
+					chatTypeView = 1;
+					break;
+				case 3:
+					chatTypeView = 2;
+					break;
+				case 4:
+					chatTypeView = 11;
+					break;
+				case 5:
+					chatTypeView = 3;
+					break;
+				default:
+					break;
+			}
+			inputTaken = true;
+			return;
+		}
 	}
 
 	private void processChatModeClick(int mouseX, int mouseY, int clickX, int clickY, boolean clicked, int baseX, int baseY, int width, int height) {
@@ -10106,10 +10299,11 @@ public class Client extends RSApplet {
 			anInt886 = 0;
 			anInt1315 = 0;
 			resetTabInterfaceHover();
-			if (isRs3InterfaceStyle()) {
-				panelManager.ensureRs3Layout(this);
-				panelManager.handleMouse(this, getMouseX(), getMouseY());
-			} else if (currentScreenMode == ScreenMode.FIXED) {
+				if (isRs3InterfaceStyle()) {
+					panelManager.ensureRs3Layout(this);
+					panelManager.handleMouse(this, getMouseX(), getMouseY());
+					panelManager.handleRightClick(this, getMouseX(), getMouseY());
+				} else if (currentScreenMode == ScreenMode.FIXED) {
 				if (getMouseX() > 516 && getMouseY() > 205 && getMouseX() < 765 && getMouseY() < 466) {
 					if (invOverlayInterfaceID != 0) {
 						buildInterfaceMenu(547, RSInterface.interfaceCache[invOverlayInterfaceID], getMouseX(), 205, getMouseY(),

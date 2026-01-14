@@ -114,6 +114,23 @@ public class PanelManager {
 		return false;
 	}
 
+	public boolean handleRightClick(Client client, int mouseX, int mouseY) {
+		if (dragging || resizing) {
+			return false;
+		}
+		for (int index = panels.size() - 1; index >= 0; index--) {
+			UiPanel panel = panels.get(index);
+			if (!panel.isVisible()) {
+				continue;
+			}
+			Rectangle bounds = panel.getBounds();
+			if (panel.contains(mouseX, mouseY)) {
+				return panel.handleRightClick(client, mouseX - bounds.x, mouseY - bounds.y);
+			}
+		}
+		return false;
+	}
+
 	public boolean handleClick(Client client, int mouseX, int mouseY, boolean mouseClicked) {
 		if (!mouseClicked || dragging || resizing) {
 			return false;
@@ -619,6 +636,27 @@ public class PanelManager {
 
 		@Override
 		public boolean handleClick(Client client, int mouseX, int mouseY) {
+			return true;
+		}
+
+		@Override
+		public boolean handleRightClick(Client client, int mouseX, int mouseY) {
+			int interfaceId = Client.tabInterfaceIDs[tabIndex];
+			if (interfaceId <= 0) {
+				return false;
+			}
+			RSInterface rsInterface = RSInterface.interfaceCache[interfaceId];
+			if (rsInterface == null) {
+				return false;
+			}
+			int adjustedMouseY = mouseY - PANEL_HEADER_HEIGHT;
+			if (adjustedMouseY < 0) {
+				return false;
+			}
+			Rectangle bounds = getBounds();
+			client.pushUiOffset(bounds.x, bounds.y + PANEL_HEADER_HEIGHT);
+			client.buildInterfaceMenuWithOffset(0, rsInterface, mouseX, 0, adjustedMouseY, getScrollPosition(rsInterface, bounds));
+			client.popUiOffset();
 			return true;
 		}
 

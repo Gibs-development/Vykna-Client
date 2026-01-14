@@ -25,7 +25,11 @@ public interface UiPanel {
 
 	boolean handleMouse(Client client, int mouseX, int mouseY);
 
-    boolean handleClick(Client client, int mouseX, int mouseY);
+	boolean handleClick(Client client, int mouseX, int mouseY);
+
+	default boolean handleRightClick(Client client, int mouseX, int mouseY) {
+		return false;
+	}
 
 	default boolean resizable() {
 		return false;
