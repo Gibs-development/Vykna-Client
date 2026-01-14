@@ -6,9 +6,12 @@ import com.client.graphics.interfaces.RSInterface;
 import com.client.utilities.settings.Settings;
 
 import java.awt.Dimension;
+import java.awt.Point;
 import java.awt.Rectangle;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 public class PanelManager {
 	public static final int PANEL_HEADER_HEIGHT = 18;
@@ -17,6 +20,8 @@ public class PanelManager {
 	private static final int PANEL_BORDER = 0x2c2c2c;
 	private static final int PANEL_TEXT = 0xffffff;
 	private static final int RESIZE_HANDLE_SIZE = 12;
+	private static final int CLOSE_BUTTON_SIZE = 12;
+	private static final int CLOSE_BUTTON_PADDING = 4;
 	public static final int PANEL_ID_INVENTORY = 1;
 	public static final int PANEL_ID_PRAYER = 2;
 	public static final int PANEL_ID_MAGIC = 3;
@@ -35,6 +40,16 @@ public class PanelManager {
 	public static final int PANEL_ID_CHAT = 21;
 	public static final int PANEL_ID_TAB_BAR = 22;
 	public static final int PANEL_ID_ORBS = 23;
+	public static final int PANEL_ID_COMPASS = 24;
+	public static final int PANEL_ID_HP_ORB = 25;
+	public static final int PANEL_ID_PRAYER_ORB = 26;
+	public static final int PANEL_ID_RUN_ORB = 27;
+	public static final int PANEL_ID_SPEC_ORB = 28;
+	public static final int PANEL_ID_XP_ORB = 29;
+	public static final int PANEL_ID_MONEY_POUCH = 30;
+	public static final int PANEL_ID_WORLD_MAP = 31;
+	public static final int PANEL_ID_TELEPORT = 32;
+	public static final int PANEL_ID_XP_PANEL = 33;
 	private final List<UiPanel> panels = new ArrayList<>();
 	private int layoutWidth = -1;
 	private int layoutHeight = -1;
@@ -63,7 +78,12 @@ public class PanelManager {
 	public void drawPanels(Client client, boolean editMode) {
 		for (UiPanel panel : panels) {
 			if (panel.isVisible()) {
-				drawPanelBackground(client, panel);
+				if (panel.drawsBackground()) {
+					drawPanelBackground(client, panel);
+					if (editMode && panel.isClosable()) {
+						drawCloseButton(client, panel);
+					}
+				}
 				panel.draw(client);
 				if (editMode) {
 					drawResizeHandle(panel);
@@ -79,6 +99,7 @@ public class PanelManager {
 		if (dragging || resizing) {
 			return false;
 		}
+		client.clearOrbHovers();
 		for (int index = panels.size() - 1; index >= 0; index--) {
 			UiPanel panel = panels.get(index);
 			if (!panel.isVisible()) {
@@ -86,7 +107,8 @@ public class PanelManager {
 			}
 			Rectangle bounds = panel.getBounds();
 			if (panel.contains(mouseX, mouseY)) {
-				return panel.handleMouse(client, mouseX - bounds.x, mouseY - bounds.y);
+				panel.handleMouse(client, mouseX - bounds.x, mouseY - bounds.y);
+				return true;
 			}
 		}
 		return false;
@@ -103,7 +125,9 @@ public class PanelManager {
 			}
 			Rectangle bounds = panel.getBounds();
 			if (panel.contains(mouseX, mouseY)) {
-				return panel.handleClick(client, mouseX - bounds.x, mouseY - bounds.y);
+				panel.handleClick(client, mouseX - bounds.x, mouseY - bounds.y);
+				client.performMenuActionIfAvailable();
+				return true;
 			}
 		}
 		return false;
@@ -118,6 +142,15 @@ public class PanelManager {
 
 		if (mouseDown && !mouseDownLastFrame) {
 			UiPanel hit = getTopmostPanelAt(mouseX, mouseY);
+			if (hit != null && hit.drawsBackground() && hit.isClosable() && isOnCloseButton(hit, mouseX, mouseY)) {
+				if (hit instanceof BasePanel) {
+					((BasePanel) hit).setVisible(false);
+				}
+				saveLayoutToSettings(client);
+				activePanel = null;
+				mouseDownLastFrame = mouseDown;
+				return;
+			}
 			if (hit != null && hit.resizable() && isOnResizeHandle(hit, mouseX, mouseY)) {
 				activePanel = hit;
 				bringToFront(hit);
@@ -177,6 +210,27 @@ public class PanelManager {
 		mouseDownLastFrame = mouseDown;
 	}
 
+	public boolean handleMouseWheel(Client client, int mouseX, int mouseY, int rotation) {
+		UiPanel hit = getTopmostPanelAt(mouseX, mouseY);
+		if (!(hit instanceof TabPanel)) {
+			return false;
+		}
+		if (!hit.isScrollable()) {
+			return false;
+		}
+		TabPanel tabPanel = (TabPanel) hit;
+		int interfaceId = Client.tabInterfaceIDs[tabPanel.getTabIndex()];
+		if (interfaceId <= 0) {
+			return false;
+		}
+		RSInterface rsInterface = RSInterface.interfaceCache[interfaceId];
+		if (rsInterface == null) {
+			return false;
+		}
+		tabPanel.scrollBy(rotation * 30, rsInterface, tabPanel.getBounds());
+		return true;
+	}
+
 	public void resetLayout(Client client) {
 		client.getUserSettings().clearRs3PanelLayouts();
 		activePanel = null;
@@ -223,6 +277,10 @@ public class PanelManager {
 		return dragging || resizing;
 	}
 
+	public boolean isMouseOverPanel(int mouseX, int mouseY) {
+		return getTopmostPanelAt(mouseX, mouseY) != null;
+	}
+
 	private UiPanel getTopmostPanelAt(int mouseX, int mouseY) {
 		for (int index = panels.size() - 1; index >= 0; index--) {
 			UiPanel panel = panels.get(index);
@@ -253,7 +311,8 @@ public class PanelManager {
 			int clampedY = clamp(layout.getY(), 0, Client.currentGameHeight - panel.getBounds().height);
 			panel.setPosition(clampedX, clampedY);
 			if (panel instanceof BasePanel) {
-				((BasePanel) panel).setVisible(layout.isVisible());
+				boolean visible = layout.isVisible() || !panel.isClosable();
+				((BasePanel) panel).setVisible(visible);
 			}
 		}
 	}
@@ -271,10 +330,11 @@ public class PanelManager {
 	}
 
 	private void drawSelectionOutline(Rectangle bounds) {
-		DrawingArea.drawPixels(1, bounds.y, bounds.x, 0x00ffff, bounds.width);
-		DrawingArea.drawPixels(1, bounds.y + bounds.height - 1, bounds.x, 0x00ffff, bounds.width);
-		DrawingArea.drawPixels(bounds.height, bounds.y, bounds.x, 0x00ffff, 1);
-		DrawingArea.drawPixels(bounds.height, bounds.y, bounds.x + bounds.width - 1, 0x00ffff, 1);
+		int highlight = 0xffd24a;
+		DrawingArea.drawPixels(1, bounds.y, bounds.x, highlight, bounds.width);
+		DrawingArea.drawPixels(1, bounds.y + bounds.height - 1, bounds.x, highlight, bounds.width);
+		DrawingArea.drawPixels(bounds.height, bounds.y, bounds.x, highlight, 1);
+		DrawingArea.drawPixels(bounds.height, bounds.y, bounds.x + bounds.width - 1, highlight, 1);
 	}
 
 	private int clamp(int value, int min, int max) {
@@ -294,8 +354,17 @@ public class PanelManager {
 		private static final int PANEL_MARGIN = 10;
 		private static final int MINIMAP_PANEL_WIDTH = 200;
 		private static final int MINIMAP_PANEL_HEIGHT = 200 + PANEL_HEADER_HEIGHT;
-		private static final int ORBS_PANEL_WIDTH = 200;
-		private static final int ORBS_PANEL_HEIGHT = 175 + PANEL_HEADER_HEIGHT;
+		private static final int COMPASS_SIZE = 36;
+		private static final int ORB_SIZE = 52;
+		private static final int XP_BUTTON_WIDTH = 24;
+		private static final int XP_BUTTON_HEIGHT = 20;
+		private static final int MONEY_POUCH_WIDTH = 70;
+		private static final int MONEY_POUCH_HEIGHT = 34;
+		private static final int WORLD_MAP_SIZE = 30;
+		private static final int TELEPORT_WIDTH = 20;
+		private static final int TELEPORT_HEIGHT = 20;
+		private static final int XP_PANEL_WIDTH = 130;
+		private static final int XP_PANEL_HEIGHT = 28;
 		private static final int CHAT_PANEL_WIDTH = 516;
 		private static final int CHAT_PANEL_HEIGHT = 165 + PANEL_HEADER_HEIGHT;
 		private static final int TAB_BAR_PANEL_WIDTH = 76;
@@ -339,13 +408,22 @@ public class PanelManager {
 			int minimapX = Math.max(PANEL_MARGIN, Client.currentGameWidth - MINIMAP_PANEL_WIDTH - PANEL_MARGIN);
 			int minimapY = PANEL_MARGIN;
 			int orbsX = minimapX - PANEL_PADDING;
-			int orbsY = minimapY + MINIMAP_PANEL_HEIGHT + PANEL_PADDING;
+			int orbsContentY = minimapY + MINIMAP_PANEL_HEIGHT + PANEL_PADDING + PANEL_HEADER_HEIGHT;
 			int chatX = PANEL_MARGIN;
 			int chatY = Math.max(PANEL_MARGIN, Client.currentGameHeight - CHAT_PANEL_HEIGHT - PANEL_MARGIN);
 			int tabBarX = Math.max(PANEL_MARGIN, minimapX - TAB_BAR_PANEL_WIDTH - PANEL_PADDING);
 			int tabBarY = minimapY;
 			panels.add(new MinimapBasePanel(PANEL_ID_MINIMAP_BASE, new Rectangle(minimapX, minimapY, MINIMAP_PANEL_WIDTH, MINIMAP_PANEL_HEIGHT)));
-			panels.add(new OrbsPanel(PANEL_ID_ORBS, new Rectangle(orbsX, orbsY, ORBS_PANEL_WIDTH, ORBS_PANEL_HEIGHT)));
+			panels.add(new CompassPanel(PANEL_ID_COMPASS, new Rectangle(minimapX + 6, minimapY + PANEL_HEADER_HEIGHT + 6, COMPASS_SIZE, COMPASS_SIZE)));
+			panels.add(new HpOrbPanel(PANEL_ID_HP_ORB, new Rectangle(orbsX + 7, orbsContentY + 41, ORB_SIZE, ORB_SIZE)));
+			panels.add(new PrayerOrbPanel(PANEL_ID_PRAYER_ORB, new Rectangle(orbsX + 7, orbsContentY + 75, ORB_SIZE, ORB_SIZE)));
+			panels.add(new RunOrbPanel(PANEL_ID_RUN_ORB, new Rectangle(orbsX + 31, orbsContentY + 132, ORB_SIZE, 30)));
+			panels.add(new SpecialOrbPanel(PANEL_ID_SPEC_ORB, new Rectangle(orbsX + 37, orbsContentY + 139, ORB_SIZE, ORB_SIZE)));
+			panels.add(new XpOrbPanel(PANEL_ID_XP_ORB, new Rectangle(orbsX + 12, orbsContentY + 27, XP_BUTTON_WIDTH, XP_BUTTON_HEIGHT)));
+			panels.add(new MoneyPouchPanel(PANEL_ID_MONEY_POUCH, new Rectangle(orbsX + 152, orbsContentY + 154, MONEY_POUCH_WIDTH, MONEY_POUCH_HEIGHT)));
+			panels.add(new WorldMapPanel(PANEL_ID_WORLD_MAP, new Rectangle(orbsX + 183, orbsContentY + 143, WORLD_MAP_SIZE, WORLD_MAP_SIZE)));
+			panels.add(new TeleportPanel(PANEL_ID_TELEPORT, new Rectangle(orbsX + 123, orbsContentY + 160, TELEPORT_WIDTH, TELEPORT_HEIGHT)));
+			panels.add(new XpPanel(PANEL_ID_XP_PANEL, new Rectangle(Client.currentGameWidth - 365, PANEL_MARGIN, XP_PANEL_WIDTH, XP_PANEL_HEIGHT)));
 			panels.add(new ChatPanel(PANEL_ID_CHAT, new Rectangle(chatX, chatY, CHAT_PANEL_WIDTH, CHAT_PANEL_HEIGHT)));
 			panels.add(new TabBarPanel(PANEL_ID_TAB_BAR, new Rectangle(tabBarX, tabBarY, TAB_BAR_PANEL_WIDTH, TAB_BAR_PANEL_HEIGHT)));
 		}
@@ -457,10 +535,26 @@ public class PanelManager {
 		public boolean keepAspectRatio() {
 			return keepAspectRatio;
 		}
+
+		@Override
+		public boolean drawsBackground() {
+			return true;
+		}
+
+		@Override
+		public boolean isClosable() {
+			return true;
+		}
+
+		@Override
+		public boolean isScrollable() {
+			return true;
+		}
 	}
 
 	static class TabPanel extends BasePanel {
 		private final int tabIndex;
+		private int scrollOffset;
 
 		private TabPanel(int id, int tabIndex, Rectangle bounds, String title, boolean visible) {
 			super(id, bounds, visible, true, title);
@@ -483,6 +577,8 @@ public class PanelManager {
 				return;
 			}
 			Rectangle bounds = getBounds();
+			applyInterfaceBounds(rsInterface, bounds);
+			int scrollPosition = getScrollPosition(rsInterface, bounds);
 			int clipLeft = DrawingArea.topX;
 			int clipTop = DrawingArea.topY;
 			int clipRight = DrawingArea.bottomX;
@@ -490,9 +586,14 @@ public class PanelManager {
 
 			DrawingArea.setDrawingArea(bounds.y + bounds.height, bounds.x, bounds.x + bounds.width, bounds.y + PANEL_HEADER_HEIGHT);
 			client.pushUiOffset(bounds.x, bounds.y + PANEL_HEADER_HEIGHT);
-			client.drawInterfaceWithOffset(0, 0, rsInterface, 0);
+			client.drawInterfaceWithOffset(scrollPosition, 0, rsInterface, 0);
 			client.popUiOffset();
 			DrawingArea.setDrawingArea(clipBottom, clipLeft, clipRight, clipTop);
+			if (needsScroll(rsInterface, bounds)) {
+				int scrollHeight = bounds.height - PANEL_HEADER_HEIGHT;
+				int scrollMax = getContentHeight(rsInterface);
+				client.drawScrollbar(scrollHeight, scrollOffset, bounds.y + PANEL_HEADER_HEIGHT, bounds.x + bounds.width - 16, scrollMax);
+			}
 		}
 
 		@Override
@@ -511,27 +612,177 @@ public class PanelManager {
 			}
 			Rectangle bounds = getBounds();
 			client.pushUiOffset(bounds.x, bounds.y + PANEL_HEADER_HEIGHT);
-			client.buildInterfaceMenuWithOffset(0, rsInterface, mouseX, 0, adjustedMouseY, 0);
+			client.buildInterfaceMenuWithOffset(0, rsInterface, mouseX, 0, adjustedMouseY, getScrollPosition(rsInterface, bounds));
 			client.popUiOffset();
 			return true;
+		}
+
+		@Override
+		public boolean handleClick(Client client, int mouseX, int mouseY) {
+			return true;
+		}
+
+		private boolean needsScroll(RSInterface rsInterface, Rectangle bounds) {
+			if (!isScrollable()) {
+				return false;
+			}
+			return getContentHeight(rsInterface) > bounds.height - PANEL_HEADER_HEIGHT;
+		}
+
+		private int getContentHeight(RSInterface rsInterface) {
+			return Math.max(rsInterface.height, rsInterface.scrollMax);
+		}
+
+		private int getScrollPosition(RSInterface rsInterface, Rectangle bounds) {
+			if (!needsScroll(rsInterface, bounds)) {
+				scrollOffset = 0;
+				return 0;
+			}
+			int maxScroll = Math.max(0, getContentHeight(rsInterface) - (bounds.height - PANEL_HEADER_HEIGHT));
+			scrollOffset = clamp(scrollOffset, 0, maxScroll);
+			return scrollOffset;
+		}
+
+		void scrollBy(int delta, RSInterface rsInterface, Rectangle bounds) {
+			if (!needsScroll(rsInterface, bounds)) {
+				scrollOffset = 0;
+				return;
+			}
+			int maxScroll = Math.max(0, getContentHeight(rsInterface) - (bounds.height - PANEL_HEADER_HEIGHT));
+			scrollOffset = clamp(scrollOffset + delta, 0, maxScroll);
+		}
+
+		int getTabIndex() {
+			return tabIndex;
+		}
+
+		private void applyInterfaceBounds(RSInterface rsInterface, Rectangle bounds) {
+			rsInterface.width = bounds.width;
+			rsInterface.height = bounds.height - PANEL_HEADER_HEIGHT;
 		}
 	}
 
 	private static final class PrayerPanel extends TabPanel {
 		private PrayerPanel(int id, Rectangle bounds) {
-			super(id, 5, bounds, "Prayer", true);
+			super(id, 5, bounds, "Prayer", true, true, 160, 200 + PANEL_HEADER_HEIGHT);
 		}
 	}
 
 	private static final class MagicPanel extends TabPanel {
 		private MagicPanel(int id, Rectangle bounds) {
-			super(id, 6, bounds, "Magic", true);
+			super(id, 6, bounds, "Magic", true, true, 160, 200 + PANEL_HEADER_HEIGHT);
 		}
 	}
 
 	private static final class EquipmentPanel extends TabPanel {
+		private static final int EXPANDED_MIN_WIDTH = 240;
+		private static final int EXPANDED_MIN_HEIGHT = 300;
+		private static final int EQUIPMENT_INTERFACE_ID = 1644;
+		private static final int CHARACTER_CHILD_ID = 15125;
+		private static final int[] SLOT_CHILD_IDS = {
+				1645, 1646, 1647, 1648, 1649, 1650, 1651, 1652, 1653, 1654, 1655
+		};
+		private boolean expandedMode;
+		private final Map<Integer, Point> originalPositions = new HashMap<>();
+
 		private EquipmentPanel(int id, Rectangle bounds) {
-			super(id, 4, bounds, "Equipment", false);
+			super(id, 4, bounds, "Equipment", false, true, 160, 200 + PANEL_HEADER_HEIGHT);
+		}
+
+		@Override
+		public void draw(Client client) {
+			updateLayout(client);
+			super.draw(client);
+		}
+
+		@Override
+		public boolean handleMouse(Client client, int mouseX, int mouseY) {
+			updateLayout(client);
+			return super.handleMouse(client, mouseX, mouseY);
+		}
+
+		private void updateLayout(Client client) {
+			if (!client.isRs3InterfaceStyleActive()) {
+				restoreLayout();
+				return;
+			}
+			int interfaceId = Client.tabInterfaceIDs[getTabIndex()];
+			if (interfaceId != EQUIPMENT_INTERFACE_ID) {
+				restoreLayout();
+				return;
+			}
+			Rectangle bounds = getBounds();
+			boolean shouldExpand = bounds.width >= EXPANDED_MIN_WIDTH && bounds.height >= EXPANDED_MIN_HEIGHT;
+			if (shouldExpand == expandedMode) {
+				return;
+			}
+			if (shouldExpand) {
+				applyExpandedLayout(bounds);
+			} else {
+				restoreLayout();
+			}
+			expandedMode = shouldExpand;
+		}
+
+		private void applyExpandedLayout(Rectangle bounds) {
+			RSInterface rsInterface = RSInterface.interfaceCache[EQUIPMENT_INTERFACE_ID];
+			if (rsInterface == null || rsInterface.children == null) {
+				return;
+			}
+			cacheOriginalPositions(rsInterface);
+			int centerX = bounds.width / 2;
+			int centerY = PANEL_HEADER_HEIGHT + (bounds.height - PANEL_HEADER_HEIGHT) / 2;
+			setChildPosition(rsInterface, CHARACTER_CHILD_ID, centerX - 32, centerY - 70);
+			setChildPosition(rsInterface, 1645, centerX - 18, centerY - 132);
+			setChildPosition(rsInterface, 1646, centerX - 86, centerY - 90);
+			setChildPosition(rsInterface, 1647, centerX - 18, centerY - 90);
+			setChildPosition(rsInterface, 1648, centerX - 126, centerY - 20);
+			setChildPosition(rsInterface, 1649, centerX - 18, centerY - 20);
+			setChildPosition(rsInterface, 1650, centerX + 90, centerY - 20);
+			setChildPosition(rsInterface, 1651, centerX - 18, centerY + 50);
+			setChildPosition(rsInterface, 1652, centerX - 126, centerY + 50);
+			setChildPosition(rsInterface, 1653, centerX - 18, centerY + 110);
+			setChildPosition(rsInterface, 1654, centerX + 90, centerY + 110);
+			setChildPosition(rsInterface, 1655, centerX + 90, centerY - 90);
+		}
+
+		private void restoreLayout() {
+			RSInterface rsInterface = RSInterface.interfaceCache[EQUIPMENT_INTERFACE_ID];
+			if (rsInterface == null || rsInterface.children == null || originalPositions.isEmpty()) {
+				return;
+			}
+			for (Map.Entry<Integer, Point> entry : originalPositions.entrySet()) {
+				setChildPosition(rsInterface, entry.getKey(), entry.getValue().x, entry.getValue().y);
+			}
+		}
+
+		private void cacheOriginalPositions(RSInterface rsInterface) {
+			if (!originalPositions.isEmpty()) {
+				return;
+			}
+			cacheChildPosition(rsInterface, CHARACTER_CHILD_ID);
+			for (int childId : SLOT_CHILD_IDS) {
+				cacheChildPosition(rsInterface, childId);
+			}
+		}
+
+		private void cacheChildPosition(RSInterface rsInterface, int childId) {
+			for (int index = 0; index < rsInterface.children.length; index++) {
+				if (rsInterface.children[index] == childId) {
+					originalPositions.put(childId, new Point(rsInterface.childX[index], rsInterface.childY[index]));
+					return;
+				}
+			}
+		}
+
+		private void setChildPosition(RSInterface rsInterface, int childId, int x, int y) {
+			for (int index = 0; index < rsInterface.children.length; index++) {
+				if (rsInterface.children[index] == childId) {
+					rsInterface.childX[index] = x;
+					rsInterface.childY[index] = y;
+					return;
+				}
+			}
 		}
 	}
 
@@ -557,7 +808,7 @@ public class PanelManager {
 	}
 
 	private void drawResizeHandle(UiPanel panel) {
-		if (!panel.resizable()) {
+		if (!panel.resizable() || !panel.drawsBackground()) {
 			return;
 		}
 		Rectangle bounds = panel.getBounds();
@@ -571,10 +822,32 @@ public class PanelManager {
 	}
 
 	private boolean isOnResizeHandle(UiPanel panel, int mouseX, int mouseY) {
+		if (!panel.drawsBackground()) {
+			return false;
+		}
 		Rectangle bounds = panel.getBounds();
 		int handleX = bounds.x + bounds.width - RESIZE_HANDLE_SIZE;
 		int handleY = bounds.y + bounds.height - RESIZE_HANDLE_SIZE;
 		return mouseX >= handleX && mouseY >= handleY;
+	}
+
+	private void drawCloseButton(Client client, UiPanel panel) {
+		Rectangle bounds = panel.getBounds();
+		int x = bounds.x + bounds.width - CLOSE_BUTTON_SIZE - CLOSE_BUTTON_PADDING;
+		int y = bounds.y + (PANEL_HEADER_HEIGHT - CLOSE_BUTTON_SIZE) / 2;
+		DrawingArea.drawPixels(CLOSE_BUTTON_SIZE, y, x, 0x2a2a2a, CLOSE_BUTTON_SIZE);
+		DrawingArea.drawPixels(1, y, x, 0x3a3a3a, CLOSE_BUTTON_SIZE);
+		DrawingArea.drawPixels(1, y + CLOSE_BUTTON_SIZE - 1, x, 0x3a3a3a, CLOSE_BUTTON_SIZE);
+		DrawingArea.drawPixels(CLOSE_BUTTON_SIZE, y, x, 0x3a3a3a, 1);
+		DrawingArea.drawPixels(CLOSE_BUTTON_SIZE, y, x + CLOSE_BUTTON_SIZE - 1, 0x3a3a3a, 1);
+		client.newSmallFont.drawCenteredString("X", x + CLOSE_BUTTON_SIZE / 2, y + 9, 0xffffff, 0);
+	}
+
+	private boolean isOnCloseButton(UiPanel panel, int mouseX, int mouseY) {
+		Rectangle bounds = panel.getBounds();
+		int x = bounds.x + bounds.width - CLOSE_BUTTON_SIZE - CLOSE_BUTTON_PADDING;
+		int y = bounds.y + (PANEL_HEADER_HEIGHT - CLOSE_BUTTON_SIZE) / 2;
+		return mouseX >= x && mouseX <= x + CLOSE_BUTTON_SIZE && mouseY >= y && mouseY <= y + CLOSE_BUTTON_SIZE;
 	}
 
 	private int adjustColor(int color, int delta) {
