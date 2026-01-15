@@ -221,7 +221,7 @@ public class PanelManager {
 				mouseDownLastFrame = mouseDown;
 				return;
 			}
-			ResizeHandle handle = hit != null && hit.resizable() ? getResizeHandle(hit, mouseX, mouseY) : null;
+			ResizeHandle handle = hit != null && hit.resizable() ? getResizeHandle(client, hit, mouseX, mouseY) : null;
 			if (handle != null) {
 				activePanel = hit;
 				bringToFront(hit);
@@ -1096,16 +1096,16 @@ public class PanelManager {
 		}
 		Rectangle bounds = panel.getBounds();
 		drawCornerHandle(bounds.x, bounds.y);
-		drawCornerHandle(bounds.x + bounds.width - RESIZE_HANDLE_SIZE, bounds.y);
+		drawCornerHandle(getRightResizeHandleX(client, panel), bounds.y);
 	}
 
-	private ResizeHandle getResizeHandle(UiPanel panel, int mouseX, int mouseY) {
+	private ResizeHandle getResizeHandle(Client client, UiPanel panel, int mouseX, int mouseY) {
 		if (!panel.drawsBackground()) {
 			return null;
 		}
 		Rectangle bounds = panel.getBounds();
 		int leftX = bounds.x;
-		int rightX = bounds.x + bounds.width - RESIZE_HANDLE_SIZE;
+		int rightX = getRightResizeHandleX(client, panel);
 		int topY = bounds.y;
 		if (mouseY >= topY && mouseY <= topY + RESIZE_HANDLE_SIZE) {
 			if (mouseX >= leftX && mouseX <= leftX + RESIZE_HANDLE_SIZE) {
@@ -1124,6 +1124,19 @@ public class PanelManager {
 		DrawingArea.drawPixels(1, y + RESIZE_HANDLE_SIZE - 1, x, 0x3a3a3a, RESIZE_HANDLE_SIZE);
 		DrawingArea.drawPixels(RESIZE_HANDLE_SIZE, y, x, 0x3a3a3a, 1);
 		DrawingArea.drawPixels(RESIZE_HANDLE_SIZE, y, x + RESIZE_HANDLE_SIZE - 1, 0x3a3a3a, 1);
+	}
+
+	private int getRightResizeHandleX(Client client, UiPanel panel) {
+		Rectangle bounds = panel.getBounds();
+		int rightX = bounds.x + bounds.width - RESIZE_HANDLE_SIZE;
+		if (panel.isClosable() && isHeaderVisible(client, panel)) {
+			int closeX = bounds.x + bounds.width - CLOSE_BUTTON_SIZE - CLOSE_BUTTON_PADDING;
+			int adjusted = closeX - RESIZE_HANDLE_SIZE;
+			if (adjusted >= bounds.x + RESIZE_HANDLE_SIZE) {
+				rightX = Math.min(rightX, adjusted);
+			}
+		}
+		return rightX;
 	}
 
 	private void drawCloseButton(Client client, UiPanel panel) {

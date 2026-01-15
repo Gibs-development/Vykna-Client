@@ -109,11 +109,16 @@ public final class VyknaShell extends JFrame {
         // Game
         gameWrap.setOpaque(true);
         gameWrap.setBackground(Color.BLACK);
-        gameWrap.add((Component) client, BorderLayout.CENTER);
+        Component gameComponent = (Component) client;
+        gameWrap.add(gameComponent, BorderLayout.CENTER);
 
         Dimension fixed = ScreenMode.FIXED.getDimensions();
         gameWrap.setPreferredSize(fixed);
         gameWrap.setMinimumSize(fixed);
+        gameWrap.setMaximumSize(fixed);
+        gameComponent.setPreferredSize(fixed);
+        gameComponent.setMinimumSize(fixed);
+        gameComponent.setMaximumSize(fixed);
         installResizeHandler(root, gameWrap);
 
         gameWrap.addMouseListener(new MouseAdapter() {
@@ -332,6 +337,12 @@ public final class VyknaShell extends JFrame {
         } else {
             gameWrap.setMinimumSize(applied);
         }
+        gameWrap.setMaximumSize(applied);
+        Component gameComponent = (Component) client;
+        gameComponent.setPreferredSize(applied);
+        gameComponent.setMinimumSize(applied);
+        gameComponent.setMaximumSize(applied);
+        gameComponent.setSize(applied);
         gameWrap.revalidate();
         gameWrap.repaint();
         pack();
@@ -342,6 +353,8 @@ public final class VyknaShell extends JFrame {
         setResizable(resizable);
         if (resizable) {
             setMinimumSize(new Dimension(765 + (sidebarHidden ? 0 : SIDEBAR_WIDTH + ICON_STRIP_WIDTH), 610));
+        } else {
+            setMinimumSize(getPreferredSize());
         }
     }
 
