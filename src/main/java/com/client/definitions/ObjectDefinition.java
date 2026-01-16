@@ -48,6 +48,11 @@ public final class ObjectDefinition {
 				objectDef.actions = new String[] { null, null, null, null, null };
 				break;
 
+			case 40496://portal in the powerful sea snake area
+				objectDef.name = "Bruno's Grave";
+				objectDef.actions = new String[] { "Leave a bone", null, null, null, null };
+				break;
+
 			case 76://Tournament supples chest
 				objectDef.name = "Tournament supplies chest";
 				objectDef.actions = new String[] { "View", null, null, null, null };
@@ -112,6 +117,18 @@ public final class ObjectDefinition {
 				objectDef.actions = new String[] {"Open", null, null, null, null};
 				break;
 
+			case 29241://Nightmare chest
+				objectDef.name = "Healing Pool";
+				objectDef.actions = new String[] {"Drink-from", null, null, null, null};
+				break;
+			case 29422://Nightmare chest
+				objectDef.name = "Teleport Tree";
+				objectDef.actions = new String[] {"Use", null, null, null, null};
+				break;
+			case 41626://Nightmare chest
+				objectDef.name = "Loot Collection Chest";
+				objectDef.actions = new String[] {"View Loot", "Bank All", null, null, null};
+				break;
 			case 29067://Lms enter
 				objectDef.actions = new String[] {"Enter-LMS", null, null, null, null};
 				break;
@@ -331,8 +348,11 @@ public final class ObjectDefinition {
 			objectDef.name = "Compost Bin";
 			break;
 		case 172:
-			objectDef.name = "Ckey chest";
+			objectDef.name = "Crystal Key Chest";
 		break;
+			case 13465:
+				objectDef.name = "Vykna Sigil";
+				break;
 		case 31925:
 		    objectDef.name = "Max Island";
 		    objectDef.actions = new String[] { "Tele to", null, null, null, null };

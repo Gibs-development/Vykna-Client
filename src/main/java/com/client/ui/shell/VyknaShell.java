@@ -2,22 +2,15 @@ package com.client.ui.shell;
 
 import com.client.Client;
 import com.client.RSFont;
-import com.client.Rasterizer;
 import com.client.Sprite;
 import com.client.features.gameframe.ScreenMode;
-import com.client.features.settings.Preferences;
-import com.client.graphics.interfaces.settings.Setting;
-import com.client.graphics.interfaces.settings.SettingsInterface;
-import com.client.graphics.interfaces.dropdown.StretchedModeMenu;
 import com.client.graphics.interfaces.impl.QuestTab;
 import com.client.utilities.settings.InterfaceStyle;
 import com.client.utilities.settings.Settings;
-import com.client.utilities.settings.SettingsManager;
 
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
 import javax.swing.plaf.basic.BasicButtonUI;
-import javax.swing.plaf.basic.BasicSliderUI;
 import javax.swing.plaf.basic.BasicScrollBarUI;
 import java.awt.*;
 import java.awt.event.MouseAdapter;
@@ -34,6 +27,7 @@ public final class VyknaShell extends JFrame {
     private static final int SIDEBAR_WIDTH = 320;
     private static final int ICON_STRIP_WIDTH = 50;
     private static final int RESIZE_MARGIN = 6;
+
     private final JPanel sidebar = new JPanel();
     private final JPanel iconStrip = new JPanel();
     private final CardLayout cardLayout = new CardLayout();
@@ -41,6 +35,7 @@ public final class VyknaShell extends JFrame {
     private CardViewport cardViewport;
     private JScrollPane scroll;
     private final JPanel gameWrap = new JPanel(new BorderLayout());
+
     // Theme
     static final Color BG = new Color(14, 15, 16);
     static final Color PANEL = new Color(20, 21, 23);
@@ -59,6 +54,9 @@ public final class VyknaShell extends JFrame {
 
     private final Client client;
 
+    // Shell-local sizing state (don’t rely on Client.currentScreenMode being updated in sync)
+    private ScreenMode shellMode = ScreenMode.FIXED;
+    private boolean shellResizable = false;
 
     private boolean sidebarHidden = false;
     private boolean resizingWindow = false;
@@ -71,16 +69,11 @@ public final class VyknaShell extends JFrame {
     private final TitleBar titleBar;
 
     // Icon tabs
-    private IconTabButton homeBtn;
-    private IconTabButton utilBtn;
-    private IconTabButton marketBtn;
-    private IconTabButton linksBtn;
     private final IconTabButton settingsBtn;
     private final IconTabButton characterBtn;
     private final CharacterInfoPanel characterPanel;
-    private static final Map<Integer, ImageIcon> chatIconCache = new HashMap<>();
 
-    // Need these to fix the “cut off” issue
+    private static final Map<Integer, ImageIcon> chatIconCache = new HashMap<>();
 
     public VyknaShell(String title, Client client) {
         super(title);
@@ -94,17 +87,14 @@ public final class VyknaShell extends JFrame {
         root.setBackground(BG);
         root.setBorder(BorderFactory.createLineBorder(BORDER));
         setContentPane(root);
-        installResizeHandler(root);
 
         titleBar = new TitleBar(title, this);
         root.add(titleBar, BorderLayout.NORTH);
-        installResizeHandler(root, titleBar);
 
         JPanel center = new JPanel(new BorderLayout());
         center.setOpaque(true);
         center.setBackground(BG);
         root.add(center, BorderLayout.CENTER);
-        installResizeHandler(root, center);
 
         // Game
         gameWrap.setOpaque(true);
@@ -119,7 +109,6 @@ public final class VyknaShell extends JFrame {
         gameComponent.setPreferredSize(fixed);
         gameComponent.setMinimumSize(fixed);
         gameComponent.setMaximumSize(fixed);
-        installResizeHandler(root, gameWrap);
 
         gameWrap.addMouseListener(new MouseAdapter() {
             @Override public void mousePressed(MouseEvent e) {
@@ -136,7 +125,6 @@ public final class VyknaShell extends JFrame {
         sidebar.setBorder(BorderFactory.createMatteBorder(0, 1, 0, 0, BORDER));
         sidebar.setLayout(new BorderLayout());
         center.add(sidebar, BorderLayout.EAST);
-        installResizeHandler(root, sidebar);
 
         // Icon strip
         iconStrip.setOpaque(true);
@@ -145,11 +133,9 @@ public final class VyknaShell extends JFrame {
         iconStrip.setLayout(new BoxLayout(iconStrip, BoxLayout.Y_AXIS));
         iconStrip.setPreferredSize(new Dimension(ICON_STRIP_WIDTH, 10));
         sidebar.add(iconStrip, BorderLayout.WEST);
-        installResizeHandler(root, iconStrip);
 
         ButtonGroup group = new ButtonGroup();
 
-        // Tabs in your requested order
         characterBtn = new IconTabButton("Character Information", IconTabButton.IconType.CHARACTER);
         final IconTabButton marketBtn    = new IconTabButton("Market", IconTabButton.IconType.MARKET);
         final IconTabButton linksBtn     = new IconTabButton("Links", IconTabButton.IconType.LINKS);
@@ -192,8 +178,8 @@ public final class VyknaShell extends JFrame {
         contentWrap.setBorder(new EmptyBorder(0, 0, 0, 0));
         sidebar.add(contentWrap, BorderLayout.CENTER);
 
-        // Panels (placeholders for now - replace with real ones later)
-        JPanel settingsPanel  = new SettingsPanel();
+        // Panels
+        JPanel settingsPanel  = new SettingsPanel(this);
         characterPanel = new CharacterInfoPanel();
         JPanel marketPanel    = new ComingSoonPanel("Market", "Coming soon...");
         JPanel linksPanel     = new LinksQuickPanel();
@@ -221,7 +207,6 @@ public final class VyknaShell extends JFrame {
         scroll.setHorizontalScrollBarPolicy(ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
         scroll.setVerticalScrollBarPolicy(ScrollPaneConstants.VERTICAL_SCROLLBAR_ALWAYS);
 
-        // Keep content away from scrollbar
         scroll.setViewportBorder(new EmptyBorder(0, 0, 0, 0));
         scroll.getViewport().setBackground(BG);
 
@@ -248,7 +233,7 @@ public final class VyknaShell extends JFrame {
 
         contentWrap.add(scroll, BorderLayout.CENTER);
 
-        // Theme pass
+        // Theme pass (global)
         applyThemeRecursive(cards);
 
         // Actions
@@ -265,13 +250,55 @@ public final class VyknaShell extends JFrame {
         settingsBtn.setSelected(true);
         show("settings", settingsBtn);
 
+        // Install resize handlers AFTER layout is built (otherwise bounds are wrong)
+        installResizeHandler(root);
+        installResizeHandler(root, titleBar);
+        installResizeHandler(root, center);
+        installResizeHandler(root, gameWrap);
+        installResizeHandler(root, sidebar);
+        installResizeHandler(root, iconStrip);
+        Toolkit.getDefaultToolkit().addAWTEventListener(event -> {
+            if (!(event instanceof MouseEvent)) return;
+            MouseEvent me = (MouseEvent) event;
+            if (me.getID() != MouseEvent.MOUSE_MOVED) return;
+
+            if (!canResizeShell() || maximized) return;
+
+            Point p = SwingUtilities.convertPoint(me.getComponent(), me.getPoint(), getRootPane());
+            boolean edge = p.x <= RESIZE_MARGIN
+                    || p.y <= RESIZE_MARGIN
+                    || p.x >= getRootPane().getWidth() - RESIZE_MARGIN
+                    || p.y >= getRootPane().getHeight() - RESIZE_MARGIN;
+
+            if (!edge) {
+                setCursor(Cursor.getDefaultCursor());
+            }
+        }, AWTEvent.MOUSE_MOTION_EVENT_MASK);
+
+//        // Ensure edge-resize works even over scrollbars/cards (glass pane sits above everything)
+//        JComponent glass = (JComponent) getGlassPane();
+//        glass.setVisible(true);
+//        glass.setOpaque(false);
+//        installResizeHandler(root, glass);
+        ResizeGlassPane glass = new ResizeGlassPane();
+        setGlassPane(glass);
+        glass.setVisible(true);
+        installResizeHandler(root, glass);
+        SwingUtilities.invokeLater(() -> {
+            glass.setBounds(0, 0, getRootPane().getWidth(), getRootPane().getHeight());
+            glass.revalidate();
+            glass.repaint();
+        });
+
         pack();
+
         Settings settings = Client.getUserSettings();
         if (settings != null) {
             updateResizableState(Client.currentScreenMode, settings.getInterfaceStyle());
+        } else {
+            updateResizableState(ScreenMode.FIXED, InterfaceStyle.OSRS);
         }
     }
-
 
     /** Called by TitleBar button. */
     public void toggleSidebar() {
@@ -281,6 +308,81 @@ public final class VyknaShell extends JFrame {
     public boolean isSidebarHidden() {
         return sidebarHidden;
     }
+
+    static void styleComboBox(JComboBox<?> cb) {
+        cb.setOpaque(true);
+        cb.setBackground(PANEL);
+        cb.setForeground(TEXT);
+        cb.setBorder(BorderFactory.createLineBorder(BORDER));
+        cb.setFocusable(false);
+
+        cb.setRenderer(new DefaultListCellRenderer() {
+            @Override
+            public Component getListCellRendererComponent(JList<?> list, Object value, int index,
+                                                          boolean isSelected, boolean cellHasFocus) {
+                JLabel l = (JLabel) super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
+                l.setOpaque(true);
+                l.setBorder(new EmptyBorder(4, 8, 4, 8));
+                l.setForeground(isSelected ? TEXT : TEXT_DIM);
+                l.setBackground(isSelected ? new Color(30, 32, 35) : PANEL);
+                list.setBackground(PANEL);
+                list.setSelectionBackground(new Color(30, 32, 35));
+                list.setSelectionForeground(TEXT);
+                return l;
+            }
+        });
+
+        // Style popup border if accessible
+        Object child = cb.getUI().getAccessibleChild(cb, 0);
+        if (child instanceof JPopupMenu) {
+            JPopupMenu popup = (JPopupMenu) child;
+            popup.setBorder(BorderFactory.createLineBorder(BORDER));
+            popup.setBackground(PANEL);
+            popup.setOpaque(true);
+        }
+    }
+
+    private final class ResizeGlassPane extends JComponent {
+        ResizeGlassPane() {
+            setOpaque(false);
+            setVisible(true);
+
+            // keep it in sync with the root pane size
+            setLayout(null);
+        }
+
+        @Override
+        public boolean contains(int x, int y) {
+            if (!shellResizable || maximized) return false;
+
+            // Use the root pane size (reliable) rather than glass size (sometimes 0)
+            JRootPane rp = getRootPane();
+            if (rp == null) return false;
+
+            int w = rp.getWidth();
+            int h = rp.getHeight();
+            if (w <= 0 || h <= 0) return false;
+
+            boolean left = x <= RESIZE_MARGIN;
+            boolean right = x >= w - RESIZE_MARGIN;
+            boolean top = y <= RESIZE_MARGIN;
+            boolean bottom = y >= h - RESIZE_MARGIN;
+
+            return left || right || top || bottom;
+        }
+
+        @Override
+        public void doLayout() {
+            // Always cover the whole root pane
+            JRootPane rp = getRootPane();
+            if (rp != null) {
+                setBounds(0, 0, rp.getWidth(), rp.getHeight());
+            } else {
+                super.doLayout();
+            }
+        }
+    }
+
 
     private void setSidebarHidden(boolean hide) {
         if (this.sidebarHidden == hide) return;
@@ -298,18 +400,16 @@ public final class VyknaShell extends JFrame {
     private void show(String key, IconTabButton btn) {
         cardLayout.show(cards, key);
         setActive(btn);
+
         if ("character".equals(key)) {
             characterPanel.refresh();
         }
 
-        // ✅ ensure scroll + viewport recompute sizes for active card
         cardViewport.sync();
         scroll.revalidate();
         scroll.repaint();
 
-        // optional: always scroll to top when switching tabs
         SwingUtilities.invokeLater(() -> scroll.getViewport().setViewPosition(new Point(0, 0)));
-
         SwingUtilities.invokeLater(() -> ((Component) client).requestFocusInWindow());
     }
 
@@ -330,37 +430,55 @@ public final class VyknaShell extends JFrame {
         if (size == null) {
             return;
         }
+
+        // In resizable mode, don't clamp maximum sizes
+        if (shellMode == ScreenMode.RESIZABLE) {
+            gameWrap.setMaximumSize(new Dimension(Integer.MAX_VALUE, Integer.MAX_VALUE));
+            ((Component) client).setMaximumSize(new Dimension(Integer.MAX_VALUE, Integer.MAX_VALUE));
+        }
+
         Dimension applied = new Dimension(size);
         gameWrap.setPreferredSize(applied);
-        if (canResizeShell()) {
+        if (shellMode == ScreenMode.RESIZABLE) {
             gameWrap.setMinimumSize(ScreenMode.RESIZABLE.getDimensions());
         } else {
             gameWrap.setMinimumSize(applied);
         }
         gameWrap.setMaximumSize(applied);
+
         Component gameComponent = (Component) client;
         gameComponent.setPreferredSize(applied);
         gameComponent.setMinimumSize(applied);
         gameComponent.setMaximumSize(applied);
         gameComponent.setSize(applied);
+
         gameWrap.revalidate();
         gameWrap.repaint();
-        pack();
-    }
 
-    public void updateResizableState(ScreenMode mode, InterfaceStyle style) {
-        boolean resizable = mode == ScreenMode.RESIZABLE && style == InterfaceStyle.RS3;
-        setResizable(resizable);
-        if (resizable) {
-            setMinimumSize(new Dimension(765 + (sidebarHidden ? 0 : SIDEBAR_WIDTH + ICON_STRIP_WIDTH), 610));
+        // Don’t fight the user while resizing
+        if (shellMode == ScreenMode.FIXED) {
+            applyFixedSizing();
         } else {
-            setMinimumSize(getPreferredSize());
+            revalidate();
+            repaint();
         }
     }
 
+    public void updateResizableState(ScreenMode mode, InterfaceStyle style) {
+        this.shellMode = mode;
+        this.shellResizable = (mode == ScreenMode.RESIZABLE);
+        setResizable(shellResizable); // undecorated → no OS handles, but keep consistent
+
+        if (mode == ScreenMode.FIXED) {
+            applyFixedSizing(); // true “hug fixed”
+        } else {
+            applyResizableSizing();
+        }
+        System.out.println("[Shell] updateResizableState -> " + mode + " shellResizable=" + (mode == ScreenMode.RESIZABLE));
+    }
+
     private boolean canResizeShell() {
-        Settings settings = Client.getUserSettings();
-        return settings != null && settings.getInterfaceStyle() == InterfaceStyle.RS3 && Client.currentScreenMode == ScreenMode.RESIZABLE;
+        return shellResizable && !maximized;
     }
 
     private void installResizeHandler(JComponent root) {
@@ -443,10 +561,6 @@ public final class VyknaShell extends JFrame {
         target.addMouseMotionListener(adapter);
     }
 
-    private boolean isInResizeZone(Point point, JComponent root) {
-        return point.x >= root.getWidth() - RESIZE_MARGIN && point.y >= root.getHeight() - RESIZE_MARGIN;
-    }
-
     void toggleMaximize() {
         if (!canResizeShell()) {
             return;
@@ -480,6 +594,46 @@ public final class VyknaShell extends JFrame {
         }
     }
 
+    private void applyFixedSizing() {
+        Dimension fixed = ScreenMode.FIXED.getDimensions();
+        sidebar.setPreferredSize(new Dimension(SIDEBAR_WIDTH, fixed.height));
+
+        gameWrap.setPreferredSize(fixed);
+        gameWrap.setMinimumSize(fixed);
+        gameWrap.setMaximumSize(fixed);
+
+        Component gameComponent = (Component) client;
+        gameComponent.setPreferredSize(fixed);
+        gameComponent.setMinimumSize(fixed);
+        gameComponent.setMaximumSize(fixed);
+
+        // Let the frame shrink to packed size, then lock minimum to it
+        setMinimumSize(new Dimension(0, 0));
+        maximized = false;
+        titleBar.setMaximized(false);
+
+        Point loc = getLocation();
+        pack();
+        setLocation(loc);
+
+        setMinimumSize(getSize());
+        updateRestoreBounds();
+    }
+
+    private void applyResizableSizing() {
+        // remove fixed clamps
+        gameWrap.setMaximumSize(new Dimension(Integer.MAX_VALUE, Integer.MAX_VALUE));
+        ((Component) client).setMaximumSize(new Dimension(Integer.MAX_VALUE, Integer.MAX_VALUE));
+
+        int minW = 765 + (sidebarHidden ? 0 : (SIDEBAR_WIDTH + ICON_STRIP_WIDTH));
+        int minH = 503 + 80;
+        setMinimumSize(new Dimension(minW, minH));
+
+        revalidate();
+        repaint();
+        updateRestoreBounds();
+    }
+
     private ResizeDirection getResizeDirection(Point point, JComponent root) {
         boolean left = point.x <= RESIZE_MARGIN;
         boolean right = point.x >= root.getWidth() - RESIZE_MARGIN;
@@ -499,24 +653,15 @@ public final class VyknaShell extends JFrame {
 
     private Cursor cursorForDirection(ResizeDirection direction) {
         switch (direction) {
-            case N:
-                return Cursor.getPredefinedCursor(Cursor.N_RESIZE_CURSOR);
-            case S:
-                return Cursor.getPredefinedCursor(Cursor.S_RESIZE_CURSOR);
-            case E:
-                return Cursor.getPredefinedCursor(Cursor.E_RESIZE_CURSOR);
-            case W:
-                return Cursor.getPredefinedCursor(Cursor.W_RESIZE_CURSOR);
-            case NE:
-                return Cursor.getPredefinedCursor(Cursor.NE_RESIZE_CURSOR);
-            case NW:
-                return Cursor.getPredefinedCursor(Cursor.NW_RESIZE_CURSOR);
-            case SE:
-                return Cursor.getPredefinedCursor(Cursor.SE_RESIZE_CURSOR);
-            case SW:
-                return Cursor.getPredefinedCursor(Cursor.SW_RESIZE_CURSOR);
-            default:
-                return Cursor.getDefaultCursor();
+            case N:  return Cursor.getPredefinedCursor(Cursor.N_RESIZE_CURSOR);
+            case S:  return Cursor.getPredefinedCursor(Cursor.S_RESIZE_CURSOR);
+            case E:  return Cursor.getPredefinedCursor(Cursor.E_RESIZE_CURSOR);
+            case W:  return Cursor.getPredefinedCursor(Cursor.W_RESIZE_CURSOR);
+            case NE: return Cursor.getPredefinedCursor(Cursor.NE_RESIZE_CURSOR);
+            case NW: return Cursor.getPredefinedCursor(Cursor.NW_RESIZE_CURSOR);
+            case SE: return Cursor.getPredefinedCursor(Cursor.SE_RESIZE_CURSOR);
+            case SW: return Cursor.getPredefinedCursor(Cursor.SW_RESIZE_CURSOR);
+            default: return Cursor.getDefaultCursor();
         }
     }
 
@@ -531,10 +676,7 @@ public final class VyknaShell extends JFrame {
         SE(false, false, true, true),
         SW(false, true, true, false);
 
-        private final boolean north;
-        private final boolean west;
-        private final boolean south;
-        private final boolean east;
+        private final boolean north, west, south, east;
 
         ResizeDirection(boolean north, boolean west, boolean south, boolean east) {
             this.north = north;
@@ -543,29 +685,16 @@ public final class VyknaShell extends JFrame {
             this.east = east;
         }
 
-        boolean hasNorth() {
-            return north;
-        }
-
-        boolean hasWest() {
-            return west;
-        }
-
-        boolean hasSouth() {
-            return south;
-        }
-
-        boolean hasEast() {
-            return east;
-        }
+        boolean hasNorth() { return north; }
+        boolean hasWest()  { return west; }
+        boolean hasSouth() { return south; }
+        boolean hasEast()  { return east; }
     }
 
-
     /** Dark-theme + compact pass for sidebar controls. */
-    private static void applyThemeRecursive(Component c) {
+    static void applyThemeRecursive(Component c) {
         if (c == null) return;
 
-        // font shrink (skip if already tiny)
         if (c instanceof JComponent) {
             Font f = c.getFont();
             if (f != null && f.getSize2D() > FONT_BASE) {
@@ -577,18 +706,15 @@ public final class VyknaShell extends JFrame {
             JLabel l = (JLabel) c;
             l.setForeground(TEXT);
 
-            // If it's already bold / large, make it a compact header
             Font f = l.getFont();
             if (f != null && f.isBold() && f.getSize2D() >= FONT_BASE) {
                 l.setFont(f.deriveFont(Font.BOLD, FONT_HEADER));
-                // subtle divider under headers
                 l.setBorder(BorderFactory.createCompoundBorder(
                         BorderFactory.createMatteBorder(0, 0, 1, 0, new Color(32, 34, 36)),
                         BorderFactory.createEmptyBorder(0, 0, 6, 0)
                 ));
             }
         } else if (c instanceof AbstractButton) {
-            // Theme JButtons and JToggleButtons, but skip our custom icon tabs and titlebar buttons
             AbstractButton b = (AbstractButton) c;
 
             if (b instanceof IconTabButton) {
@@ -626,26 +752,6 @@ public final class VyknaShell extends JFrame {
             pb.setBackground(PANEL);
             pb.setForeground(ACCENT);
             pb.setBorder(BorderFactory.createLineBorder(BORDER));
-        } else if (c instanceof JSlider) {
-            JSlider slider = (JSlider) c;
-            slider.setBackground(BG);
-            slider.setForeground(TEXT);
-            slider.setUI(new ShellSliderUI(slider));
-        } else if (c instanceof JComboBox) {
-            @SuppressWarnings("rawtypes")
-            JComboBox cb = (JComboBox) c;
-            cb.setBackground(PANEL);
-            cb.setForeground(TEXT);
-            cb.setBorder(BorderFactory.createLineBorder(BORDER));
-            cb.setRenderer(new ShellComboBoxRenderer());
-            cb.setFocusable(false);
-        } else if (c instanceof JList) {
-            @SuppressWarnings("rawtypes")
-            JList list = (JList) c;
-            list.setBackground(PANEL);
-            list.setForeground(TEXT);
-            list.setSelectionBackground(new Color(32, 34, 36));
-            list.setSelectionForeground(TEXT);
         }
 
         if (c instanceof Container) {
@@ -702,7 +808,6 @@ public final class VyknaShell extends JFrame {
     }
 
     private static void themeToggle(JToggleButton b) {
-        // keep it compact and consistent
         b.setUI(new BasicButtonUI());
         b.setFocusPainted(false);
         b.setBorderPainted(false);
@@ -727,7 +832,7 @@ public final class VyknaShell extends JFrame {
     /**
      * Icon-only tab button, RuneLite-style.
      */
-    private static final class IconTabButton extends JToggleButton {
+    static final class IconTabButton extends JToggleButton {
 
         enum IconType {
             CHARACTER("/vykna/icons/character_information.png"),
@@ -743,7 +848,6 @@ public final class VyknaShell extends JFrame {
             IconType(String path) { this.path = path; }
         }
 
-        private final IconType icon;
         private final ImageIcon iconImg;
 
         private boolean hover = false;
@@ -751,7 +855,6 @@ public final class VyknaShell extends JFrame {
 
         IconTabButton(String tooltip, IconType icon) {
             super();
-            this.icon = icon;
             this.iconImg = IconResources.load(icon.path, 25);
 
             setToolTipText(tooltip);
@@ -764,7 +867,6 @@ public final class VyknaShell extends JFrame {
 
             setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
 
-            // RuneLite-ish sizing
             setPreferredSize(new Dimension(36, 36));
             setMaximumSize(new Dimension(36, 36));
             setMinimumSize(new Dimension(36, 36));
@@ -804,15 +906,12 @@ public final class VyknaShell extends JFrame {
                     g2.fillRoundRect(2, 6, 4, h - 12, 10, 10);
                 }
 
-                // Draw PNG icon
                 if (iconImg != null) {
                     int iw = iconImg.getIconWidth();
                     int ih = iconImg.getIconHeight();
                     int ix = (w - iw) / 2;
                     int iy = (h - ih) / 2;
 
-                    // Slight “dim” effect when inactive
-// Slight “dim” effect when inactive
                     if (!active && !hover) {
                         g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 0.85f));
                     } else {
@@ -820,12 +919,8 @@ public final class VyknaShell extends JFrame {
                     }
 
                     iconImg.paintIcon(this, g2, ix, iy);
-
-// reset
                     g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 1.0f));
-
                 } else {
-                    // Fallback: draw a tiny dot so you can tell it's missing
                     g2.setColor(new Color(200, 60, 60));
                     g2.fillOval(w / 2 - 2, h / 2 - 2, 4, 4);
                 }
@@ -836,10 +931,8 @@ public final class VyknaShell extends JFrame {
         }
     }
 
-
     /**
      * ✅ Key fix: a viewport that reports preferred size of the currently visible card.
-     * This stops “Utility panel gets cut off”.
      */
     private static final class CardViewport extends JPanel implements Scrollable {
         private final JPanel cardPanel;
@@ -865,7 +958,6 @@ public final class VyknaShell extends JFrame {
                 vw = ((JViewport) p).getWidth();
             }
 
-            // Find currently visible card
             for (Component c : cardPanel.getComponents()) {
                 if (c.isVisible()) {
                     Dimension d = c.getPreferredSize();
@@ -879,34 +971,11 @@ public final class VyknaShell extends JFrame {
         @Override public Dimension getPreferredScrollableViewportSize() { return getPreferredSize(); }
         @Override public int getScrollableUnitIncrement(Rectangle visibleRect, int orientation, int direction) { return 16; }
         @Override public int getScrollableBlockIncrement(Rectangle visibleRect, int orientation, int direction) { return 64; }
-        @Override public boolean getScrollableTracksViewportWidth() { return true; }   // ✅ key line
+        @Override public boolean getScrollableTracksViewportWidth() { return true; }
         @Override public boolean getScrollableTracksViewportHeight() { return false; }
     }
 
-
-    /** Subtle gradient background for sidebar. */
-    private static final class SidebarPanel extends JPanel {
-        @Override
-        protected void paintComponent(Graphics g) {
-            Graphics2D g2 = (Graphics2D) g.create();
-            try {
-                int w = getWidth();
-                int h = getHeight();
-
-                GradientPaint gp = new GradientPaint(0, 0, new Color(16, 17, 19), 0, h, new Color(12, 13, 14));
-                g2.setPaint(gp);
-                g2.fillRect(0, 0, w, h);
-
-                g2.setColor(new Color(ACCENT.getRed(), ACCENT.getGreen(), ACCENT.getBlue(), 16));
-                g2.fillOval(w - 220, -140, 320, 320);
-
-                super.paintComponent(g);
-            } finally {
-                g2.dispose();
-            }
-        }
-    }
-    private static final class SectionTitle extends JLabel {
+    static final class SectionTitle extends JLabel {
         SectionTitle(String text) {
             super(text);
             setForeground(TEXT);
@@ -918,7 +987,7 @@ public final class VyknaShell extends JFrame {
         }
     }
 
-    private static JPanel cardRoot() {
+    static JPanel cardRoot() {
         JPanel p = new JPanel();
         p.setOpaque(true);
         p.setBackground(BG);
@@ -927,330 +996,7 @@ public final class VyknaShell extends JFrame {
         return p;
     }
 
-    private static final class SettingsPanel extends JPanel {
-        private final JPanel body;
-
-        SettingsPanel() {
-            super(new BorderLayout());
-            setOpaque(true);
-            setBackground(BG);
-
-            Settings settings = Client.getUserSettings();
-            if (settings == null) {
-                settings = Settings.getDefault();
-                Client.setUserSettings(settings);
-            }
-
-            body = cardRoot();
-            body.add(new SectionTitle("Settings"));
-
-            body.add(sectionHeader("Graphics"));
-            addSettingToggle(SettingsInterface.ANTI_ALIASING, isTrue(settings.isAntiAliasing()));
-            addSettingToggle(SettingsInterface.FOG, isTrue(settings.isFog()));
-            addSettingToggle(SettingsInterface.SMOOTH_SHADING, isTrue(settings.isSmoothShading()));
-            addSettingToggle(SettingsInterface.TILE_BLENDING, isTrue(settings.isTileBlending()));
-            addSettingToggle(SettingsInterface.STATUS_BARS, isTrue(isStatusBarsEnabled()));
-            addSettingDropdown(SettingsInterface.DRAW_DISTANCE, drawDistanceIndex(settings.getDrawDistance()));
-            addSettingDropdown(SettingsInterface.STRETCHED_MODE, booleanToIndex(settings.isStretchedMode()));
-            body.add(sliderRow("Brightness", Preferences.getPreferences().brightness * 100.0, 60, 100, value -> {
-                Preferences.getPreferences().brightness = value / 100.0;
-                Rasterizer.setBrightness(Preferences.getPreferences().brightness);
-                Preferences.save();
-            }));
-
-            body.add(sectionHeader("Interface"));
-            addSettingDropdown(SettingsInterface.INTERFACE_STYLE, interfaceStyleIndex(settings.getInterfaceStyle()));
-            addSettingToggle(SettingsInterface.OLD_GAMEFRAME, isTrue(settings.isOldGameframe()));
-            addSettingDropdown(SettingsInterface.INVENTORY_MENU, inventoryMenuIndex());
-            addSettingDropdown(SettingsInterface.CHAT_EFFECT, settings.getChatColor());
-            addSettingToggle(SettingsInterface.GROUND_ITEM_NAMES, isTrue(settings.isGroundItemOverlay()));
-            addSettingToggle(SettingsInterface.MENU_HOVERS, isTrue(isMenuHoversEnabled()));
-            addSettingToggle(SettingsInterface.PLAYER_PROFILE, false);
-            addSettingToggle(SettingsInterface.GAME_TIMERS, isTrue(settings.isGameTimers()));
-            addSettingDropdown(SettingsInterface.PM_NOTIFICATION, booleanToIndex(Preferences.getPreferences().pmNotifications));
-            addRs3EditModeControls(settings);
-            addRs3PanelBackgroundSetting(settings);
-
-            body.add(sectionHeader("Gameplay"));
-            addSettingToggle(SettingsInterface.BOUNTY_HUNTER, isTrue(settings.isBountyHunter()));
-            addSettingToggle(SettingsInterface.ENTITY_TARGET, isTrue(settings.isShowEntityTarget()));
-            addSettingDropdown(SettingsInterface.DRAG, dragTimeIndex());
-
-            body.add(sectionHeader("Misc"));
-            addSettingToggle(SettingsInterface.ROOF, isTrue(!isRemoveRoofsEnabled()));
-            addSettingToggle(SettingsInterface.PVP_TAB, false);
-
-            add(body, BorderLayout.CENTER);
-        }
-
-        // ---------------- UI pieces ----------------
-
-        private JPanel row(String label, JComponent control) {
-            JPanel row = new JPanel(new BorderLayout());
-            row.setOpaque(true);
-            row.setBackground(BG);
-            row.setBorder(new EmptyBorder(5, 2, 5, 2));
-
-            JLabel l = new JLabel(label);
-            l.setForeground(TEXT);
-            l.setFont(l.getFont().deriveFont(12f));
-
-            row.add(l, BorderLayout.WEST);
-            row.add(control, BorderLayout.EAST);
-            return row;
-        }
-
-        private JPanel sectionHeader(String title) {
-            JPanel p = new JPanel(new BorderLayout());
-            p.setOpaque(true);
-            p.setBackground(BG);
-            p.setBorder(new EmptyBorder(8, 0, 2, 0));
-            JLabel label = new JLabel(title);
-            label.setForeground(TEXT_DIM);
-            label.setFont(label.getFont().deriveFont(Font.BOLD, 12f));
-            p.add(label, BorderLayout.WEST);
-            return p;
-        }
-
-        private void addSettingToggle(Setting setting, boolean initial) {
-            JToggleButton toggle = pillToggle(initial);
-            toggle.addActionListener(e -> {
-                int option = toggle.isSelected() ? 0 : 1;
-                setting.getMenuItem().select(option, null);
-                persistSettings();
-                syncToggleVisual(toggle);
-            });
-            body.add(row(setting.getSettingName(), toggle));
-        }
-
-        private void addSettingDropdown(Setting setting, int selectedIndex) {
-            JComboBox<String> combo = new JComboBox<>(setting.getOptions());
-            combo.setSelectedIndex(Math.max(0, Math.min(selectedIndex, setting.getOptions().length - 1)));
-            combo.addActionListener(e -> {
-                int index = combo.getSelectedIndex();
-                setting.getMenuItem().select(index, null);
-                if (setting == SettingsInterface.STRETCHED_MODE) {
-                    StretchedModeMenu.updateStretchedMode(index == 0);
-                }
-                if (setting == SettingsInterface.INTERFACE_STYLE) {
-                    refreshRs3Controls();
-                }
-                persistSettings();
-            });
-            body.add(row(setting.getSettingName(), combo));
-        }
-
-        private JPanel sliderRow(String label, double initialValue, int min, int max, SliderValueConsumer onChange) {
-            JPanel row = new JPanel(new BorderLayout());
-            row.setOpaque(true);
-            row.setBackground(BG);
-            row.setBorder(new EmptyBorder(8, 2, 8, 2));
-
-            JLabel l = new JLabel(label);
-            l.setForeground(TEXT);
-            l.setFont(l.getFont().deriveFont(12f));
-            row.add(l, BorderLayout.WEST);
-
-            int initial = (int) Math.round(initialValue);
-            JSlider slider = new JSlider(min, max, initial);
-            slider.setOpaque(false);
-            slider.setPreferredSize(new Dimension(150, 20));
-            slider.addChangeListener(e -> {
-                if (!slider.getValueIsAdjusting()) {
-                    onChange.accept(slider.getValue());
-                }
-            });
-            row.add(slider, BorderLayout.EAST);
-            return row;
-        }
-
-        private JToggleButton pillToggle(boolean def) {
-            JToggleButton t = new JToggleButton(def ? "ON" : "OFF", def);
-            t.setFocusable(false);
-            t.setOpaque(true);
-            t.setBorder(BorderFactory.createCompoundBorder(
-                    BorderFactory.createLineBorder(new Color(34, 36, 40)),
-                    new EmptyBorder(6, 12, 6, 12)
-            ));
-            syncToggleVisual(t);
-            return t;
-        }
-
-        private void syncToggleVisual(JToggleButton t) {
-            boolean on = t.isSelected();
-            t.setText(on ? "ON" : "OFF");
-            t.setForeground(on ? TEXT : TEXT_DIM);
-            t.setBackground(on ? new Color(24, 26, 28) : new Color(16, 17, 19));
-        }
-
-        private int drawDistanceIndex(int drawDistance) {
-            if (drawDistance == 30) return 0;
-            if (drawDistance == 40) return 1;
-            if (drawDistance == 50) return 2;
-            if (drawDistance == 60) return 3;
-            return 4;
-        }
-
-        private int interfaceStyleIndex(InterfaceStyle style) {
-            return style == InterfaceStyle.RS3 ? 1 : 0;
-        }
-
-        private JToggleButton rs3EditModeToggle;
-        private JButton rs3ResetLayoutButton;
-        private JComboBox<String> rs3PanelBackgroundDropdown;
-
-        private void addRs3EditModeControls(Settings settings) {
-            rs3EditModeToggle = pillToggle(settings.isRs3EditMode());
-            rs3EditModeToggle.addActionListener(e -> {
-                Settings currentSettings = Client.getUserSettings();
-                if (currentSettings == null || currentSettings.getInterfaceStyle() != InterfaceStyle.RS3) {
-                    rs3EditModeToggle.setSelected(false);
-                    syncToggleVisual(rs3EditModeToggle);
-                    return;
-                }
-                Client instance = Client.getInstance();
-                if (instance != null) {
-                    instance.setRs3EditMode(rs3EditModeToggle.isSelected());
-                } else {
-                    currentSettings.setRs3EditMode(rs3EditModeToggle.isSelected());
-                }
-                persistSettings();
-                syncToggleVisual(rs3EditModeToggle);
-            });
-
-            rs3ResetLayoutButton = new JButton("Reset");
-            rs3ResetLayoutButton.addActionListener(e -> {
-                if (settings.getInterfaceStyle() != InterfaceStyle.RS3) {
-                    return;
-                }
-                Client.getInstance().resetRs3PanelLayout();
-                persistSettings();
-            });
-
-            body.add(row("RS3 Edit Mode", rs3EditModeToggle));
-            body.add(row("Reset RS3 Layout", rs3ResetLayoutButton));
-            refreshRs3Controls();
-        }
-
-        private void addRs3PanelBackgroundSetting(Settings settings) {
-            String[] options = { "Dark", "Slate", "Blue", "Crimson" };
-            rs3PanelBackgroundDropdown = new JComboBox<>(options);
-            rs3PanelBackgroundDropdown.setSelectedIndex(rs3PanelBackgroundIndex(settings.getRs3PanelBackgroundColor()));
-            rs3PanelBackgroundDropdown.addActionListener(e -> {
-                int index = rs3PanelBackgroundDropdown.getSelectedIndex();
-                Settings current = Client.getUserSettings();
-                if (current != null) {
-                    current.setRs3PanelBackgroundColor(rs3PanelBackgroundColorForIndex(index));
-                }
-                persistSettings();
-            });
-            body.add(row("RS3 Panel Background", rs3PanelBackgroundDropdown));
-        }
-
-        private void refreshRs3Controls() {
-            Settings settings = Client.getUserSettings();
-            if (settings == null) {
-                return;
-            }
-            boolean rs3 = settings.getInterfaceStyle() == InterfaceStyle.RS3;
-            if (rs3EditModeToggle != null) {
-                rs3EditModeToggle.setEnabled(rs3);
-                rs3EditModeToggle.setSelected(settings.isRs3EditMode());
-                syncToggleVisual(rs3EditModeToggle);
-                if (!rs3) {
-                    Client instance = Client.getInstance();
-                    if (instance != null) {
-                        instance.setRs3EditMode(false);
-                    }
-                    rs3EditModeToggle.setSelected(false);
-                    syncToggleVisual(rs3EditModeToggle);
-                }
-            }
-            if (rs3ResetLayoutButton != null) {
-                rs3ResetLayoutButton.setEnabled(rs3);
-            }
-            if (rs3PanelBackgroundDropdown != null) {
-                rs3PanelBackgroundDropdown.setEnabled(rs3);
-                rs3PanelBackgroundDropdown.setSelectedIndex(rs3PanelBackgroundIndex(settings.getRs3PanelBackgroundColor()));
-            }
-        }
-
-        private int rs3PanelBackgroundIndex(int color) {
-            if (color == 0x1a1f24) {
-                return 1;
-            }
-            if (color == 0x121a2c) {
-                return 2;
-            }
-            if (color == 0x2a1616) {
-                return 3;
-            }
-            return 0;
-        }
-
-        private int rs3PanelBackgroundColorForIndex(int index) {
-            switch (index) {
-                case 1:
-                    return 0x1a1f24;
-                case 2:
-                    return 0x121a2c;
-                case 3:
-                    return 0x2a1616;
-                default:
-                    return 0x141414;
-            }
-        }
-
-        private int inventoryMenuIndex() {
-            if (!Client.getUserSettings().isInventoryContextMenu()) {
-                return 0;
-            }
-            int color = Client.getUserSettings().getStartMenuColor();
-            if (color == 0xFF00FF) return 1;
-            if (color == 0x00FF00) return 2;
-            if (color == 0x00FFFF) return 3;
-            if (color == 0xFF0000) return 4;
-            return 1;
-        }
-
-        private int dragTimeIndex() {
-            int drag = Preferences.getPreferences().dragTime;
-            if (drag == 5) return 0;
-            if (drag == 6) return 1;
-            if (drag == 8) return 2;
-            if (drag == 10) return 3;
-            return 4;
-        }
-
-        private boolean isStatusBarsEnabled() {
-            return com.client.Configuration.statusBars;
-        }
-
-        private boolean isRemoveRoofsEnabled() {
-            return Client.removeRoofs;
-        }
-
-        private boolean isMenuHoversEnabled() {
-            return com.client.Configuration.menuHovers;
-        }
-
-        private boolean isTrue(boolean value) {
-            return value;
-        }
-
-        private int booleanToIndex(boolean value) {
-            return value ? 0 : 1;
-        }
-
-        private void persistSettings() {
-            try {
-                SettingsManager.saveSettings(Client.getInstance());
-            } catch (Exception ignored) {
-            }
-            Preferences.save();
-        }
-    }
-
+    // --- Other panels unchanged (Character/Links/etc) ---
 
     private static final class CharacterInfoPanel extends JPanel {
         private final JPanel listPanel;
@@ -1438,7 +1184,6 @@ public final class VyknaShell extends JFrame {
             JPanel body = cardRoot();
             body.add(new SectionTitle("News"));
 
-            // Big PNG space placeholder
             JPanel hero = new JPanel();
             hero.setOpaque(true);
             hero.setBackground(new Color(18, 19, 21));
@@ -1549,7 +1294,6 @@ public final class VyknaShell extends JFrame {
                 if (!e.getValueIsAdjusting()) {
                     String sel = list.getSelectedValue();
                     if (sel != null) {
-                        // Placeholder: later we’ll hook this to fill login fields or send a client command.
                         System.out.println("[SavedAccounts] Selected: " + sel);
                     }
                 }
@@ -1585,16 +1329,12 @@ public final class VyknaShell extends JFrame {
     }
 
     private static ImageIcon loadChatIcon(int iconId) {
-        if (iconId < 0) {
-            return null;
-        }
-        if (RSFont.chatImages == null || iconId >= RSFont.chatImages.length) {
-            return null;
-        }
+        if (iconId < 0) return null;
+        if (RSFont.chatImages == null || iconId >= RSFont.chatImages.length) return null;
+
         Sprite sprite = RSFont.chatImages[iconId];
-        if (sprite == null || sprite.myPixels == null) {
-            return null;
-        }
+        if (sprite == null || sprite.myPixels == null) return null;
+
         return chatIconCache.computeIfAbsent(iconId, key -> {
             Image image = Toolkit.getDefaultToolkit().createImage(
                     new MemoryImageSource(sprite.myWidth, sprite.myHeight, ColorModel.getRGBdefault(), sprite.myPixels, 0, sprite.myWidth)
@@ -1616,64 +1356,4 @@ public final class VyknaShell extends JFrame {
             this.header = header;
         }
     }
-
-    private static final class ShellComboBoxRenderer extends DefaultListCellRenderer {
-        @Override
-        public Component getListCellRendererComponent(JList<?> list, Object value, int index, boolean isSelected, boolean cellHasFocus) {
-            JLabel label = (JLabel) super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
-            list.setBackground(PANEL);
-            list.setSelectionBackground(new Color(30, 32, 35));
-            list.setSelectionForeground(TEXT);
-            label.setBackground(isSelected ? new Color(30, 32, 35) : PANEL);
-            label.setForeground(TEXT);
-            label.setBorder(new EmptyBorder(2, 6, 2, 6));
-            return label;
-        }
-    }
-
-    private static final class ShellSliderUI extends BasicSliderUI {
-        private static final int TRACK_HEIGHT = 6;
-        private static final int THUMB_SIZE = 12;
-
-        ShellSliderUI(JSlider b) {
-            super(b);
-        }
-
-        @Override
-        protected Dimension getThumbSize() {
-            return new Dimension(THUMB_SIZE, THUMB_SIZE);
-        }
-
-        @Override
-        public void paintTrack(Graphics g) {
-            Graphics2D g2 = (Graphics2D) g.create();
-            try {
-                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-                int cy = trackRect.y + (trackRect.height - TRACK_HEIGHT) / 2;
-                g2.setColor(new Color(32, 34, 36));
-                g2.fillRoundRect(trackRect.x, cy, trackRect.width, TRACK_HEIGHT, TRACK_HEIGHT, TRACK_HEIGHT);
-            } finally {
-                g2.dispose();
-            }
-        }
-
-        @Override
-        public void paintThumb(Graphics g) {
-            Graphics2D g2 = (Graphics2D) g.create();
-            try {
-                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-                g2.setColor(ACCENT);
-                g2.fillOval(thumbRect.x, thumbRect.y, thumbRect.width, thumbRect.height);
-                g2.setColor(BORDER);
-                g2.drawOval(thumbRect.x, thumbRect.y, thumbRect.width - 1, thumbRect.height - 1);
-            } finally {
-                g2.dispose();
-            }
-        }
-    }
-
-    private interface SliderValueConsumer {
-        void accept(double value);
-    }
-
 }

@@ -49,6 +49,10 @@ public final class GraphicsBuffer {
         //graphics.drawImage(this.bufferedImage, y, x, null);
     }
 
+    public void initDrawingArea() {
+        DrawingArea.initDrawingArea(canvasHeight, canvasWidth, canvasRaster, depthBuffer);
+    }
+
     public void setCanvas() {
         DrawingArea.initDrawingArea(this.canvasHeight, this.canvasWidth, this.canvasRaster, this.depthBuffer);
     }

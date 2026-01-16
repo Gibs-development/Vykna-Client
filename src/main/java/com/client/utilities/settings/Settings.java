@@ -41,7 +41,7 @@ public class Settings implements Serializable {
 
 	private boolean oldGameframe;
 	private InterfaceStyle interfaceStyle;
-	private boolean rs3EditMode;
+	private static boolean rs3EditMode;
 	private int rs3PanelBackgroundColor;
 	private int rs3InterfaceTransparency;
 	private boolean gameTimers;
@@ -79,7 +79,7 @@ public class Settings implements Serializable {
 		this.interfaceStyle = interfaceStyle;
 	}
 
-	public boolean isRs3EditMode() {
+	public static boolean isRs3EditMode() {
 		return rs3EditMode;
 	}
 

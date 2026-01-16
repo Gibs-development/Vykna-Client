@@ -434,7 +434,7 @@ public class RSApplet extends Applet implements Runnable, MouseListener, MouseMo
 		setMouseX(-1);
 		setMouseY(-1);
 	}
-	
+
 	public static boolean sliderShowAlpha = false;
 
 	@Override
@@ -550,14 +550,14 @@ public class RSApplet extends Applet implements Runnable, MouseListener, MouseMo
 				Client.dialogueOptions("five");
 			}
 			switch (i) {
-			case KeyEvent.VK_V:
-				Client.inputString += Client.getClipboardContents();
-				Client.inputTaken = true;
-				break;
+				case KeyEvent.VK_V:
+					Client.inputString += Client.getClipboardContents();
+					Client.inputTaken = true;
+					break;
 
-			case KeyEvent.VK_T:
-				Client.teleportInterface();
-				break;
+				case KeyEvent.VK_T:
+					Client.teleportInterface();
+					break;
 
 			}
 		}
@@ -593,60 +593,60 @@ public class RSApplet extends Applet implements Runnable, MouseListener, MouseMo
 			Client.closeInterface();
 		}
 		/**
-		if (hotKeyToggle == true) {
-			if (i == KeyEvent.VK_F5) {
-				Client.setTab(0);
-			} else if (i == KeyEvent.VK_F11) {
-				Client.setTab(1);
-			} else if (i == KeyEvent.VK_F12) {
-				Client.setTab(2);
-			} else if (i == KeyEvent.VK_F1) {
-				Client.setTab(3);
-			} else if (i == KeyEvent.VK_F2) {
-				Client.setTab(4);
-			} else if (i == KeyEvent.VK_F3) {
-				Client.setTab(5);
-			} else if (i == KeyEvent.VK_F4) {
-				Client.setTab(6);
-			} else if (i == KeyEvent.VK_F8) {
-				Client.setTab(7);
-			} else if (i == KeyEvent.VK_F9) {
-				Client.setTab(8);
-			} else if (i == KeyEvent.VK_F10) {
-				Client.setTab(9);
-			} else if (i == KeyEvent.VK_F11) {
-				Client.setTab(10);
-			} else if (i == KeyEvent.VK_F12) {
-				Client.setTab(11);
-			}
-		} else {
-			if (i == KeyEvent.VK_F1) {
-				Client.setTab(3);
-			} else if (i == KeyEvent.VK_F2) {
-				Client.setTab(1);
-			} else if (i == KeyEvent.VK_F3) {
-				Client.setTab(2);
-			} else if (i == KeyEvent.VK_F4) {
-				Client.setTab(3);
-			} else if (i == KeyEvent.VK_F5) {
-				Client.setTab(4);
-			} else if (i == KeyEvent.VK_F6) {
-				Client.setTab(5);
-			} else if (i == KeyEvent.VK_F7) {
-				Client.setTab(6);
-			} else if (i == KeyEvent.VK_F8) {
-				Client.setTab(7);
-			} else if (i == KeyEvent.VK_F9) {
-				Client.setTab(8);
-			} else if (i == KeyEvent.VK_F10) {
-				Client.setTab(9);
-			} else if (i == KeyEvent.VK_F11) {
-				Client.setTab(10);
-			} else if (i == KeyEvent.VK_F12) {
-				Client.setTab(11);
-			}
-		}
-**/
+		 if (hotKeyToggle == true) {
+		 if (i == KeyEvent.VK_F5) {
+		 Client.setTab(0);
+		 } else if (i == KeyEvent.VK_F11) {
+		 Client.setTab(1);
+		 } else if (i == KeyEvent.VK_F12) {
+		 Client.setTab(2);
+		 } else if (i == KeyEvent.VK_F1) {
+		 Client.setTab(3);
+		 } else if (i == KeyEvent.VK_F2) {
+		 Client.setTab(4);
+		 } else if (i == KeyEvent.VK_F3) {
+		 Client.setTab(5);
+		 } else if (i == KeyEvent.VK_F4) {
+		 Client.setTab(6);
+		 } else if (i == KeyEvent.VK_F8) {
+		 Client.setTab(7);
+		 } else if (i == KeyEvent.VK_F9) {
+		 Client.setTab(8);
+		 } else if (i == KeyEvent.VK_F10) {
+		 Client.setTab(9);
+		 } else if (i == KeyEvent.VK_F11) {
+		 Client.setTab(10);
+		 } else if (i == KeyEvent.VK_F12) {
+		 Client.setTab(11);
+		 }
+		 } else {
+		 if (i == KeyEvent.VK_F1) {
+		 Client.setTab(3);
+		 } else if (i == KeyEvent.VK_F2) {
+		 Client.setTab(1);
+		 } else if (i == KeyEvent.VK_F3) {
+		 Client.setTab(2);
+		 } else if (i == KeyEvent.VK_F4) {
+		 Client.setTab(3);
+		 } else if (i == KeyEvent.VK_F5) {
+		 Client.setTab(4);
+		 } else if (i == KeyEvent.VK_F6) {
+		 Client.setTab(5);
+		 } else if (i == KeyEvent.VK_F7) {
+		 Client.setTab(6);
+		 } else if (i == KeyEvent.VK_F8) {
+		 Client.setTab(7);
+		 } else if (i == KeyEvent.VK_F9) {
+		 Client.setTab(8);
+		 } else if (i == KeyEvent.VK_F10) {
+		 Client.setTab(9);
+		 } else if (i == KeyEvent.VK_F11) {
+		 Client.setTab(10);
+		 } else if (i == KeyEvent.VK_F12) {
+		 Client.setTab(11);
+		 }
+		 }
+		 **/
 		if (keyevent.isControlDown()) {
 			Client.controlIsDown = true;
 		}
@@ -918,7 +918,62 @@ public class RSApplet extends Applet implements Runnable, MouseListener, MouseMo
 	}
 
 	public int getMouseX() {
-		return (int) ClientWindow.getStretchedMouseCoordinates(new Point(mouseX, mouseY)).getX();
+		return getGameMousePoint().x;
+	}
+
+
+
+	private Point getGameMousePoint() {
+		final int rawX = mouseX;
+		final int rawY = mouseY;
+
+		// If we are not stretching/scaling, raw coordinates are already in game space.
+		if (!Client.stretched && Client.currentScreenMode == com.client.features.gameframe.ScreenMode.FIXED) {
+			return new Point(rawX, rawY);
+		}
+
+		final Component c = getGameComponent();
+		if (c == null) {
+			return new Point(rawX, rawY);
+		}
+
+		final int cw = c.getWidth();
+		final int ch = c.getHeight();
+		final int gw = Client.currentGameWidth;
+		final int gh = Client.currentGameHeight;
+
+		if (cw <= 0 || ch <= 0 || gw <= 0 || gh <= 0) {
+			return new Point(rawX, rawY);
+		}
+
+		// Reverse the same "fit to window" scaling used when rendering.
+		final double sx = (double) cw / (double) gw;
+		final double sy = (double) ch / (double) gh;
+		final double s = Math.min(sx, sy);
+
+		final int vw = (int) Math.round(gw * s);
+		final int vh = (int) Math.round(gh * s);
+		final int vx = (cw - vw) / 2;
+		final int vy = (ch - vh) / 2;
+
+		int mx = rawX - vx;
+		int my = rawY - vy;
+
+		// If the mouse is in the letterbox area, treat it as outside the game.
+		if (mx < 0 || my < 0 || mx >= vw || my >= vh) {
+			return new Point(-1, -1);
+		}
+
+		int gx = (int) (mx / s);
+		int gy = (int) (my / s);
+
+		// Clamp to game bounds
+		if (gx < 0) gx = 0;
+		if (gy < 0) gy = 0;
+		if (gx >= gw) gx = gw - 1;
+		if (gy >= gh) gy = gh - 1;
+
+		return new Point(gx, gy);
 	}
 
 	public int getRawMouseX() {

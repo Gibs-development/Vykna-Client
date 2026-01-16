@@ -1263,10 +1263,69 @@ public class PanelManager {
 	}
 
 	private void drawDockPreview(DockCandidate candidate) {
-		Rectangle bounds = candidate.bounds;
-		DrawingArea.drawAlphaPixels(bounds.x, bounds.y, bounds.width, bounds.height, 0xffd24a, DOCK_PREVIEW_ALPHA);
-		drawSelectionOutline(bounds);
+		if (candidate == null || candidate.bounds == null) {
+			return;
+		}
+		if (DrawingArea.pixels == null) {
+			return;
+		}
+
+		// Clamp to the current raster. During live resize, width/height can be briefly inconsistent,
+		// so also clamp height against pixels.length / width.
+		int rasterW = DrawingArea.width;
+		if (rasterW <= 0) {
+			return;
+		}
+
+		int rasterH = DrawingArea.height;
+		int maxHFromPixels = DrawingArea.pixels.length / rasterW;
+		if (maxHFromPixels <= 0) {
+			return;
+		}
+		if (rasterH > maxHFromPixels) {
+			rasterH = maxHFromPixels;
+		}
+
+		Rectangle b = candidate.bounds;
+
+		int x = b.x;
+		int y = b.y;
+		int w = b.width;
+		int h = b.height;
+
+		if (w <= 0 || h <= 0) {
+			return;
+		}
+
+		// Clip left/top
+		if (x < 0) {
+			w += x;
+			x = 0;
+		}
+		if (y < 0) {
+			h += y;
+			y = 0;
+		}
+
+		// Clip right/bottom
+		if (x + w > rasterW) {
+			w = rasterW - x;
+		}
+		if (y + h > rasterH) {
+			h = rasterH - y;
+		}
+
+		if (w <= 0 || h <= 0) {
+			return;
+		}
+
+		// Draw preview safely
+		DrawingArea.drawAlphaPixels(x, y, w, h, 0xffd24a, DOCK_PREVIEW_ALPHA);
+
+		// Outline should match the clamped preview (not the original b that may be off-screen)
+		drawSelectionOutline(new Rectangle(x, y, w, h));
 	}
+
 
 	private enum ResizeHandle {
 		TOP_LEFT,

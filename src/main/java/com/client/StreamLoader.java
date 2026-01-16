@@ -1,8 +1,9 @@
 package com.client;
-import java.io.*;
-import java.util.zip.*;
 
 import com.client.sign.Signlink;
+
+import java.io.*;
+import java.util.zip.GZIPInputStream;
 
 public class StreamLoader {
 
@@ -14,6 +15,16 @@ public class StreamLoader {
 			e.printStackTrace();
 		}
 		a(b);
+	}
+	private byte[] tryLoadCustomFont(String name) {
+		try {
+			String path = Signlink.getCacheDirectory() + "custom_fonts/" + name + ".dat";
+			File f = new File(path);
+			if (!f.exists()) return null;
+			return java.nio.file.Files.readAllBytes(f.toPath());
+		} catch (Exception e) {
+			return null;
+		}
 	}
 
 	public static byte[] getBytesFromFile(File file) throws IOException {

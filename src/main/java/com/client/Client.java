@@ -1,6 +1,7 @@
 package com.client;
 
 import ch.qos.logback.classic.Level;
+import com.client.attributes.ItemAttrStore;
 import com.client.broadcast.Broadcast;
 import com.client.broadcast.BroadcastManager;
 import com.client.definitions.*;
@@ -34,14 +35,14 @@ import com.client.sound.MidiPlayer;
 import com.client.sound.Sound;
 import com.client.sound.SoundType;
 import com.client.ui.DevConsole;
+import com.client.ui.panel.InventoryPanel;
+import com.client.ui.panel.PanelManager;
 import com.client.ui.panel.UiPanel;
 import com.client.ui.shell.VyknaShell;
 import com.client.utilities.*;
+import com.client.utilities.settings.InterfaceStyle;
 import com.client.utilities.settings.Settings;
 import com.client.utilities.settings.SettingsManager;
-import com.client.utilities.settings.InterfaceStyle;
-import com.client.ui.panel.PanelManager;
-import com.client.ui.panel.InventoryPanel;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Lists;
 import com.util.FileUtility;
@@ -87,6 +88,10 @@ public class Client extends RSApplet {
 	private final Deque<Point> uiOffsetStack = new ArrayDeque<>();
 	private int uiOffsetX;
 	private int uiOffsetY;
+	// Fullscreen modal UI overlay support
+	private GraphicsBuffer fullscreenOverlayBuffer;
+	private int fullscreenOverlayOffX;
+	private int fullscreenOverlayOffY;
 	private static final int CHAT_AREA_WIDTH = 516;
 	private static final int CHAT_AREA_HEIGHT = 165;
 	private static final int CHAT_TAB_HEIGHT = 22;
@@ -190,6 +195,9 @@ public class Client extends RSApplet {
 	private int channelBarType;
 	private long channelBarStartMs;
 	private long channelBarEndMs;
+	// Fullscreen onboarding overlay (Account Genesis)
+	private boolean accountGenesisOpen = false;
+	public static final int ACCOUNT_GENESIS_ID = 0;
 
 	public boolean isServerUpdating() {
 		return anInt1104 > 0;
@@ -242,6 +250,14 @@ public class Client extends RSApplet {
 		uiOffsetY += dy;
 	}
 
+	public void openAccountGenesis() {
+		accountGenesisOpen = true;
+	}
+
+	public void closeAccountGenesis() {
+		accountGenesisOpen = false;
+	}
+
 	public void popUiOffset() {
 		if (uiOffsetStack.isEmpty()) {
 			uiOffsetX = 0;
@@ -283,6 +299,19 @@ public class Client extends RSApplet {
 
 	public boolean canToggleRs3ChatInput() {
 		return loggedIn && isRs3InterfaceStyle() && inputDialogState == 0 && !messagePromptRaised;
+	}
+	// Fullscreen overlay interface (drawn above everything)
+	private int fullscreenInterfaceId = -1;
+	private boolean fullscreenInterfaceBlocksInput = false;
+
+	public void openFullscreenInterface(int interfaceId, boolean blockInput) {
+		this.fullscreenInterfaceId = interfaceId;
+		this.fullscreenInterfaceBlocksInput = blockInput;
+	}
+
+	public void closeFullscreenInterface() {
+		this.fullscreenInterfaceId = -1;
+		this.fullscreenInterfaceBlocksInput = false;
 	}
 
 	private void drawRs3Panels() {
@@ -369,6 +398,17 @@ public class Client extends RSApplet {
 			System.arraycopy(src, srcIndex, dst, dstIndex, srcWidth);
 		}
 	}
+
+	private void copyMainToUiBuffer() {
+		if (uiGraphicsBuffer == null || mainGameGraphicsBuffer == null) {
+			return;
+		}
+		int[] src = mainGameGraphicsBuffer.canvasRaster;
+		int[] dst = uiGraphicsBuffer.canvasRaster;
+		int len = Math.min(src.length, dst.length);
+		System.arraycopy(src, 0, dst, 0, len);
+	}
+
 
 	private void drawViewportFrame() {
 		if (!isRs3InterfaceStyle() || currentScreenMode == ScreenMode.FIXED) {
@@ -787,7 +827,6 @@ public class Client extends RSApplet {
 				getUserSettings().setStretchedModeDimensions(ScreenMode.FIXED.getDimensions());
 			size = getUserSettings().getStretchedModeDimensions();
 		}
-
 		setGameMode(mode, size, serialize);
 	}
 
@@ -1394,10 +1433,10 @@ public class Client extends RSApplet {
 							}
 						}
 						if (chatType == 0) {
-								if (chatTypeView == 5 || chatTypeView == 0) {
-									if (yPos > 0 && yPos < messageAreaHeight) {
-										newRegularFont.drawBasicString(chatMessages[k], messageBaseX + 10, yPos - 1 + messageBaseY, 0, -1);
-									}
+							if (chatTypeView == 5 || chatTypeView == 0) {
+								if (yPos > 0 && yPos < messageAreaHeight) {
+									newRegularFont.drawBasicString(chatMessages[k], messageBaseX + 10, yPos - 1 + messageBaseY, 0, -1);
+								}
 								j++;
 								j77++;
 							}
@@ -1405,14 +1444,14 @@ public class Client extends RSApplet {
 						if ((chatType == 1 || chatType == 2) && (chatType == 1 || publicChatMode == 0
 								|| publicChatMode == 1 && isFriendOrSelf(s1))) {
 							if (chatTypeView == 1 || chatTypeView == 0) {
-									if (yPos > 0 && yPos < messageAreaHeight) {
-										int xPos = messageBaseX + 11;
+								if (yPos > 0 && yPos < messageAreaHeight) {
+									int xPos = messageBaseX + 11;
 									if (!crowns.isEmpty()) {
 										for (int crown : crowns) {
 											for (int right = 0; right < modIcons.length; right++) {
 												if (right == (crown - 1) && modIcons[right] != null) {
-														modIcons[right].drawAdvancedSprite(xPos - 1,
-																yPos + messageBaseY - modIcons[right].myHeight);
+													modIcons[right].drawAdvancedSprite(xPos - 1,
+															yPos + messageBaseY - modIcons[right].myHeight);
 													xPos += modIcons[right].myWidth;
 													xPos += 2;
 													break;
@@ -1420,9 +1459,9 @@ public class Client extends RSApplet {
 											}
 										}
 									}
-										newRegularFont.drawBasicString(s1 + ":", xPos - 1, yPos - 1 + messageBaseY, 0, -1);
+									newRegularFont.drawBasicString(s1 + ":", xPos - 1, yPos - 1 + messageBaseY, 0, -1);
 									xPos += newRegularFont.getTextWidth(s1) + 5;
-										newRegularFont.drawBasicString(chatMessages[k], xPos - 1, yPos - 1 + messageBaseY, publicChatColor, -1, false);
+									newRegularFont.drawBasicString(chatMessages[k], xPos - 1, yPos - 1 + messageBaseY, publicChatColor, -1, false);
 								}
 								j++;
 								j77++;
@@ -1430,10 +1469,10 @@ public class Client extends RSApplet {
 						}
 
 						if (chatType == 99) {
-								if (yPos > 0 && yPos < messageAreaHeight) {
-									lastViewedDropTable = chatMessages[k];
-									newRegularFont.drawBasicString(s1 + " " + chatMessages[k], messageBaseX + 10, yPos - 1 + messageBaseY, 0x7e3200, -1, false);
-								}
+							if (yPos > 0 && yPos < messageAreaHeight) {
+								lastViewedDropTable = chatMessages[k];
+								newRegularFont.drawBasicString(s1 + " " + chatMessages[k], messageBaseX + 10, yPos - 1 + messageBaseY, 0x7e3200, -1, false);
+							}
 							j++;
 							j77++;
 						}
@@ -1442,10 +1481,10 @@ public class Client extends RSApplet {
 						if ((chatType == 3 || chatType == 7) && (!splitPrivateChat || chatTypeView == 2)
 								&& (chatType == 7 || privateChatMode == 0
 								|| privateChatMode == 1 && isFriendOrSelf(s1))) {
-								if (chatTypeView == 2 || chatTypeView == 0) {
-									if (yPos > 0 && yPos < messageAreaHeight) {
-										int k1 = messageBaseX + 11;
-										newRegularFont.drawBasicString("From", k1, yPos - 1 + messageBaseY, 0, -1);
+							if (chatTypeView == 2 || chatTypeView == 0) {
+								if (yPos > 0 && yPos < messageAreaHeight) {
+									int k1 = messageBaseX + 11;
+									newRegularFont.drawBasicString("From", k1, yPos - 1 + messageBaseY, 0, -1);
 									k1 += textDrawingArea.getTextWidth("From ");
 									if (!crowns.isEmpty()) {
 										for (int crown : crowns) {
@@ -1459,18 +1498,18 @@ public class Client extends RSApplet {
 											}
 										}
 									}
-										newRegularFont.drawBasicString(s1 + ":", k1, yPos - 1 + messageBaseY, 0, -1);
+									newRegularFont.drawBasicString(s1 + ":", k1, yPos - 1 + messageBaseY, 0, -1);
 									k1 += newRegularFont.getTextWidth(s1) + 8;
-										newRegularFont.drawBasicString(chatMessages[k], k1, yPos - 1 + messageBaseY, 0x800000, -1, false);
+									newRegularFont.drawBasicString(chatMessages[k], k1, yPos - 1 + messageBaseY, 0x800000, -1, false);
 								}
 								j++;
 								j77++;
 							}
 						}
 						if (chatType == 4 && (tradeMode == 0 || tradeMode == 1 && isFriendOrSelf(s1))) {
-								if (chatTypeView == 3 || chatTypeView == 0) {
-									if (yPos > 0 && yPos < messageAreaHeight)
-										newRegularFont.drawBasicString(s1 + " " + chatMessages[k], messageBaseX + 11, yPos - 1 + messageBaseY, 0x800080, -1, false);
+							if (chatTypeView == 3 || chatTypeView == 0) {
+								if (yPos > 0 && yPos < messageAreaHeight)
+									newRegularFont.drawBasicString(s1 + " " + chatMessages[k], messageBaseX + 11, yPos - 1 + messageBaseY, 0x800080, -1, false);
 								j++;
 								j77++;
 							}
@@ -1478,33 +1517,33 @@ public class Client extends RSApplet {
 						if (chatType == 31 && (tradeMode == 0 || tradeMode == 1 && isFriendOrSelf(s1))) {
 							int crownId = 29;
 							if (chatTypeView == 3 || chatTypeView == 0) {
-									if (yPos > 0 && yPos < messageAreaHeight) {
-										int xPos = messageBaseX + 11;
-										modIcons[crownId].drawAdvancedSprite(xPos - 1, yPos + messageBaseY - modIcons[crownId].myHeight);
-										xPos += modIcons[crownId].myWidth;
-										newRegularFont.drawBasicString(s1 + " " + chatMessages[k], xPos - 1, yPos - 1 + messageBaseY, 0x1950ce, -1, false);
-									}
+								if (yPos > 0 && yPos < messageAreaHeight) {
+									int xPos = messageBaseX + 11;
+									modIcons[crownId].drawAdvancedSprite(xPos - 1, yPos + messageBaseY - modIcons[crownId].myHeight);
+									xPos += modIcons[crownId].myWidth;
+									newRegularFont.drawBasicString(s1 + " " + chatMessages[k], xPos - 1, yPos - 1 + messageBaseY, 0x1950ce, -1, false);
+								}
 								j++;
 								j77++;
 							}
 						}
 						if (chatType == 5 && !splitPrivateChat && privateChatMode < 2) {
-								if (chatTypeView == 2 || chatTypeView == 0) {
-									if (yPos > 0 && yPos < messageAreaHeight)
-										newRegularFont.drawBasicString(chatMessages[k], messageBaseX + 10, yPos - 1 + messageBaseY, 0x800000, -1, false);
+							if (chatTypeView == 2 || chatTypeView == 0) {
+								if (yPos > 0 && yPos < messageAreaHeight)
+									newRegularFont.drawBasicString(chatMessages[k], messageBaseX + 10, yPos - 1 + messageBaseY, 0x800000, -1, false);
 								j++;
 								j77++;
 							}
 						}
 						if (chatType == 6 && (!splitPrivateChat || chatTypeView == 2) && privateChatMode < 2) {
-								if (chatTypeView == 2 || chatTypeView == 0) {
-									if (yPos > 0 && yPos < messageAreaHeight) {
-										int k1 = messageBaseX + 15;
-										k1 += textDrawingArea.getTextWidth("To " + s1);
-										newRegularFont.drawBasicString("To " + s1 + ":", messageBaseX + 10, yPos - 1 + messageBaseY, 0, -1);
+							if (chatTypeView == 2 || chatTypeView == 0) {
+								if (yPos > 0 && yPos < messageAreaHeight) {
+									int k1 = messageBaseX + 15;
+									k1 += textDrawingArea.getTextWidth("To " + s1);
+									newRegularFont.drawBasicString("To " + s1 + ":", messageBaseX + 10, yPos - 1 + messageBaseY, 0, -1);
 									// newRegularFont.drawBasicString(chatMessages[k], 15 +
 									// newRegularFont.getTextWidth("To :" + s1), yPos, 0x800000, -1);
-										newRegularFont.drawBasicString(chatMessages[k], k1, yPos - 1 + messageBaseY, 0x800000, -1, false);
+									newRegularFont.drawBasicString(chatMessages[k], k1, yPos - 1 + messageBaseY, 0x800000, -1, false);
 								}
 								j++;
 								j77++;
@@ -1520,8 +1559,8 @@ public class Client extends RSApplet {
 										String clanChatMessage = chatMessages[k];
 										String chatMessage = clanChatMessage.substring(clanChatMessage.indexOf(lastChatNameEnd) + lastChatNameEnd.length());
 										String usernameAndFormatting = clanChatMessage.substring(0, clanChatMessage.indexOf(lastChatNameEnd) + lastChatNameEnd.length());
-											newRegularFont.drawBasicString(usernameAndFormatting, messageBaseX + 8, yPos - 1 + messageBaseY, 0x7e3200, -1, true);
-											newRegularFont.drawBasicString(chatMessage, messageBaseX + newRegularFont.getTextWidth(usernameAndFormatting) + 8, yPos - 1 + messageBaseY, 0x7e3200, -1, false);
+										newRegularFont.drawBasicString(usernameAndFormatting, messageBaseX + 8, yPos - 1 + messageBaseY, 0x7e3200, -1, true);
+										newRegularFont.drawBasicString(chatMessage, messageBaseX + newRegularFont.getTextWidth(usernameAndFormatting) + 8, yPos - 1 + messageBaseY, 0x7e3200, -1, false);
 									} catch (Exception e) {
 										e.printStackTrace();
 									}
@@ -1531,69 +1570,69 @@ public class Client extends RSApplet {
 							}
 						}
 						if (chatType == 13 && chatTypeView == 12) {
-								if (yPos > 0 && yPos < messageAreaHeight)
-									newRegularFont.drawBasicString(s1 + " " + chatMessages[k], messageBaseX + 8, yPos - 1 + messageBaseY, 0x7e3200, -1, false);
+							if (yPos > 0 && yPos < messageAreaHeight)
+								newRegularFont.drawBasicString(s1 + " " + chatMessages[k], messageBaseX + 8, yPos - 1 + messageBaseY, 0x7e3200, -1, false);
 							j++;
 							j77++;
 						}
 						if (chatType == 8 && (tradeMode == 0 || tradeMode == 1 && isFriendOrSelf(s1))) {
-								if (chatTypeView == 3 || chatTypeView == 0) {
-									if (yPos > 0 && yPos < messageAreaHeight)
-										newRegularFont.drawBasicString(s1 + " " + chatMessages[k], messageBaseX + 10, yPos - 1 + messageBaseY, 0x7e3200, -1, false);
+							if (chatTypeView == 3 || chatTypeView == 0) {
+								if (yPos > 0 && yPos < messageAreaHeight)
+									newRegularFont.drawBasicString(s1 + " " + chatMessages[k], messageBaseX + 10, yPos - 1 + messageBaseY, 0x7e3200, -1, false);
 								j++;
 								j77++;
 							}
 						}
 						if (chatType == 16) {
-								int j2 = messageBaseX + 51;
-								String clanname = clanList[k];
-								int clanNameWidth = textDrawingArea.getTextWidth(clanname);
-								if (chatTypeView == 11 || chatTypeView == 0) {
-									newRegularFont.drawBasicString("[", messageBaseX + 19, yPos - 1 + messageBaseY, 0, -1);
-									newRegularFont.drawBasicString("]", messageBaseX + clanNameWidth + 26, yPos - 1 + messageBaseY, 0, -1);
-									newRegularFont.drawBasicString("" + capitalize(clanname) + "", messageBaseX + 25, yPos - 1 + messageBaseY,
-											255, -1);
-									newRegularFont.drawBasicString(chatNames[k] + ":", j2 - 17, yPos);
-									j2 += newRegularFont.getTextWidth(chatNames[k]) + 7;
-									newRegularFont.drawBasicString(capitalize(chatMessages[k]), j2 - 16, yPos - 1 + messageBaseY, 0x800000, -1);
+							int j2 = messageBaseX + 51;
+							String clanname = clanList[k];
+							int clanNameWidth = textDrawingArea.getTextWidth(clanname);
+							if (chatTypeView == 11 || chatTypeView == 0) {
+								newRegularFont.drawBasicString("[", messageBaseX + 19, yPos - 1 + messageBaseY, 0, -1);
+								newRegularFont.drawBasicString("]", messageBaseX + clanNameWidth + 26, yPos - 1 + messageBaseY, 0, -1);
+								newRegularFont.drawBasicString("" + capitalize(clanname) + "", messageBaseX + 25, yPos - 1 + messageBaseY,
+										255, -1);
+								newRegularFont.drawBasicString(chatNames[k] + ":", j2 - 17, yPos);
+								j2 += newRegularFont.getTextWidth(chatNames[k]) + 7;
+								newRegularFont.drawBasicString(capitalize(chatMessages[k]), j2 - 16, yPos - 1 + messageBaseY, 0x800000, -1);
 
 								j++;
 								j77++;
 							}
 						}
 					}
-					DrawingArea.defaultDrawingAreaSize();
-					chatAreaScrollLength = j * 14 + 7 + 5;
-					int scrollHeight = getChatScrollHeight(chatAreaHeight);
-					int scrollX = xOffset + chatAreaWidth - 20;
-					int scrollY = 6 + yOffset;
-					if (rs3ChatOverride && messageRect != null) {
-						scrollHeight = messageRect.height;
-						scrollX = messageRect.x + messageRect.width - 12;
-						scrollY = messageRect.y;
-					}
-					if (chatAreaScrollLength < scrollHeight - 3)
-						chatAreaScrollLength = scrollHeight - 3;
-					drawScrollbar(scrollHeight, chatAreaScrollLength - anInt1089 - (scrollHeight - 1), scrollY, scrollX, chatAreaScrollLength);
-					int inputBaseX = xOffset;
-					int inputTextY = 133 + yOffset;
-					int inputIconY = 134 + yOffset;
-					int inputLineY = 120 + yOffset;
-					int lineWidth = rs3ChatOverride ? Math.max(100, getChatAreaWidth() - 10) : 506;
-					if (rs3ChatOverride && inputRect != null) {
-						inputBaseX = inputRect.x;
-						inputTextY = inputRect.y + inputRect.height - 6;
-						inputIconY = inputRect.y + inputRect.height - 8;
-						inputLineY = inputRect.y + 2;
-						lineWidth = Math.max(60, inputRect.width - 6);
-						DrawingArea.setDrawingArea(inputRect.y + inputRect.height, inputRect.x, inputRect.x + inputRect.width, inputRect.y);
-					} else {
-						DrawingArea.setDrawingArea(yOffset + chatAreaHeight, xOffset, xOffset + chatAreaWidth, yOffset);
-					}
-					String fixedString;
-					if (myPlayer != null && myPlayer.displayName != null) {
-						if (myPlayer.title.length() > 0) {
-							fixedString = "<col=" + myPlayer.titleColor + ">" + myPlayer.title + "</col>" + " "
+				DrawingArea.defaultDrawingAreaSize();
+				chatAreaScrollLength = j * 14 + 7 + 5;
+				int scrollHeight = getChatScrollHeight(chatAreaHeight);
+				int scrollX = xOffset + chatAreaWidth - 20;
+				int scrollY = 6 + yOffset;
+				if (rs3ChatOverride && messageRect != null) {
+					scrollHeight = messageRect.height;
+					scrollX = messageRect.x + messageRect.width - 12;
+					scrollY = messageRect.y;
+				}
+				if (chatAreaScrollLength < scrollHeight - 3)
+					chatAreaScrollLength = scrollHeight - 3;
+				drawScrollbar(scrollHeight, chatAreaScrollLength - anInt1089 - (scrollHeight - 1), scrollY, scrollX, chatAreaScrollLength);
+				int inputBaseX = xOffset;
+				int inputTextY = 133 + yOffset;
+				int inputIconY = 134 + yOffset;
+				int inputLineY = 120 + yOffset;
+				int lineWidth = rs3ChatOverride ? Math.max(100, getChatAreaWidth() - 10) : 506;
+				if (rs3ChatOverride && inputRect != null) {
+					inputBaseX = inputRect.x;
+					inputTextY = inputRect.y + inputRect.height - 6;
+					inputIconY = inputRect.y + inputRect.height - 8;
+					inputLineY = inputRect.y + 2;
+					lineWidth = Math.max(60, inputRect.width - 6);
+					DrawingArea.setDrawingArea(inputRect.y + inputRect.height, inputRect.x, inputRect.x + inputRect.width, inputRect.y);
+				} else {
+					DrawingArea.setDrawingArea(yOffset + chatAreaHeight, xOffset, xOffset + chatAreaWidth, yOffset);
+				}
+				String fixedString;
+				if (myPlayer != null && myPlayer.displayName != null) {
+					if (myPlayer.title.length() > 0) {
+						fixedString = "<col=" + myPlayer.titleColor + ">" + myPlayer.title + "</col>" + " "
 								+ myPlayer.displayName;
 					} else {
 						fixedString = myPlayer.displayName;
@@ -1607,44 +1646,44 @@ public class Client extends RSApplet {
 				else
 					s = StringUtils.fixName(capitalize(myUsername));
 
-					int nameOffset = 0;
-					if (myPlayer.hasRightsOtherThan(PlayerRights.PLAYER)) {
-						for (PlayerRights right : myPlayer.getDisplayedRights()) {
-							if (right.hasCrown()) {
-								modIcons[right.spriteId()].drawSprite(inputBaseX + 9 + nameOffset,
-										inputIconY - modIcons[right.spriteId()].myHeight);
-								nameOffset += modIcons[right.spriteId()].myWidth;
-								nameOffset += 2;
-							}
-						}
-
-						newRegularFont.drawBasicString(fixedString, inputBaseX + 10 + nameOffset, inputTextY, 0, -1);
-					} else {
-						newRegularFont.drawBasicString(fixedString, inputBaseX + 10 + nameOffset, inputTextY, 0, -1);
-					}
-
-					nameOffset += newRegularFont.getTextWidth(fixedString) + 10;
-					newRegularFont.drawBasicString(": ", inputBaseX + nameOffset, inputTextY, 0, -1);
-					nameOffset += textDrawingArea.getTextWidth(": ");
-
-					boolean showCursor = !isFieldInFocus() && (!rs3ChatOverride || rs3ChatInputMode);
-					if (!isFieldInFocus()) {
-						newRegularFont.drawBasicString(inputString + (showCursor ? "*" : ""), inputBaseX + nameOffset, inputTextY, 255, -1, false);
-					}
-
-					if (rs3ChatOverride && inputRect != null && !rs3ChatInputMode) {
-						String label = "PRESS ENTER TO CHAT";
-						int labelWidth = newSmallFont.getTextWidth(label);
-						int labelX = inputBaseX + nameOffset + 12;
-						int maxLabelX = inputRect.x + inputRect.width - labelWidth - 4;
-						labelX = Math.min(labelX, maxLabelX);
-						if (labelX > inputBaseX + nameOffset) {
-							newSmallFont.drawBasicString(label, labelX, inputTextY, 0xaaaaaa, 0);
+				int nameOffset = 0;
+				if (myPlayer.hasRightsOtherThan(PlayerRights.PLAYER)) {
+					for (PlayerRights right : myPlayer.getDisplayedRights()) {
+						if (right.hasCrown()) {
+							modIcons[right.spriteId()].drawSprite(inputBaseX + 9 + nameOffset,
+									inputIconY - modIcons[right.spriteId()].myHeight);
+							nameOffset += modIcons[right.spriteId()].myWidth;
+							nameOffset += 2;
 						}
 					}
 
-					DrawingArea.method339(inputLineY, 0x807660, lineWidth, inputBaseX + 7);
+					newRegularFont.drawBasicString(fixedString, inputBaseX + 10 + nameOffset, inputTextY, 0, -1);
+				} else {
+					newRegularFont.drawBasicString(fixedString, inputBaseX + 10 + nameOffset, inputTextY, 0, -1);
 				}
+
+				nameOffset += newRegularFont.getTextWidth(fixedString) + 10;
+				newRegularFont.drawBasicString(": ", inputBaseX + nameOffset, inputTextY, 0, -1);
+				nameOffset += textDrawingArea.getTextWidth(": ");
+
+				boolean showCursor = !isFieldInFocus() && (!rs3ChatOverride || rs3ChatInputMode);
+				if (!isFieldInFocus()) {
+					newRegularFont.drawBasicString(inputString + (showCursor ? "*" : ""), inputBaseX + nameOffset, inputTextY, 255, -1, false);
+				}
+
+				if (rs3ChatOverride && inputRect != null && !rs3ChatInputMode) {
+					String label = "PRESS ENTER TO CHAT";
+					int labelWidth = newSmallFont.getTextWidth(label);
+					int labelX = inputBaseX + nameOffset + 12;
+					int maxLabelX = inputRect.x + inputRect.width - labelWidth - 4;
+					labelX = Math.min(labelX, maxLabelX);
+					if (labelX > inputBaseX + nameOffset) {
+						newSmallFont.drawBasicString(label, labelX, inputTextY, 0xaaaaaa, 0);
+					}
+				}
+
+				DrawingArea.method339(inputLineY, 0x807660, lineWidth, inputBaseX + 7);
+			}
 
 		}
 		DrawingArea.defaultDrawingAreaSize();
@@ -1731,14 +1770,14 @@ public class Client extends RSApplet {
 	public boolean processMenuClick() {
 		if (activeInterfaceType != 0)
 			return false;
-			if (isRs3InterfaceStyle() && !menuOpen) {
-				panelManager.ensureRs3Layout(this);
-				if (panelManager.isMouseOverPanel(super.getSaveClickX(), super.getSaveClickY())) {
-					if (super.clickMode3 != 2) {
-						return false;
-					}
+		if (isRs3InterfaceStyle() && !menuOpen) {
+			panelManager.ensureRs3Layout(this);
+			if (panelManager.isMouseOverPanel(super.getSaveClickX(), super.getSaveClickY())) {
+				if (super.clickMode3 != 2) {
+					return false;
 				}
 			}
+		}
 		int j = super.clickMode3;
 		if (spellSelected == 1 && super.getSaveClickX() >= 516 && super.getSaveClickY() >= 160 && super.getSaveClickX() <= 765
 				&& super.getSaveClickY() <= 205)
@@ -2994,7 +3033,7 @@ public class Client extends RSApplet {
 															HoverMenuManager.reset();
 														}
 														if (HoverMenuManager.showMenu && HoverMenuManager.drawType() == 1) {
-															HoverMenuManager.drawHintMenu();
+															//HoverMenuManager.drawHintMenu();
 														}
 
 														if (i4 == 0)
@@ -3160,7 +3199,7 @@ public class Client extends RSApplet {
 												HoverMenuManager.hintId = itemDef.id;
 											}
 											if (HoverMenuManager.showMenu && HoverMenuManager.drawType() == 1) {
-												HoverMenuManager.drawHintMenu();
+											//	HoverMenuManager.drawHintMenu();
 											}
 
 											if (!class9_1.isInventoryInterface) {
@@ -4051,7 +4090,7 @@ public class Client extends RSApplet {
 		}
 
 		if (HoverMenuManager.showMenu && HoverMenuManager.drawType() == 0) {
-			HoverMenuManager.drawHintMenu();
+			//HoverMenuManager.drawHintMenu();
 		}
 
 		if (getUserSettings().isInventoryContextMenu() && hintMenu) {
@@ -4496,6 +4535,11 @@ public class Client extends RSApplet {
 	public void resetLogout() {
 		logger.debug("being logged out.. from: "+new Throwable().getStackTrace()[1].toString());
 		logger.debug("Logging out..");
+		// Vykna attrs: prevent stale per-slot attrs leaking across sessions
+		try {
+			com.client.attributes.ItemAttrStore.clearAll();
+		} catch (Throwable ignored) {
+		}
 		loggedIn = false;
 		prayClicked = false;
 		loginScreenState = LoginScreenState.LOGIN;
@@ -5372,6 +5416,12 @@ public class Client extends RSApplet {
 	private GameTimer gameTimer;
 
 	private void mainGameProcessor() {
+		if (loadingStage == 2 && fullscreenInterfaceID != -1) {
+			menuActionRow = 0;
+			menuOpen = false;
+			return;
+		}
+
 		timeOutHasLoggedMessages();
 		//WorldController.focalLength = cameraZoom;
 		updateGameMode();
@@ -5642,21 +5692,28 @@ public class Client extends RSApplet {
 									class9.inventoryAmounts[l3] = class9.inventoryAmounts[l2];
 									class9.inventoryItemId[l2] = -1;
 									class9.inventoryAmounts[l2] = 0;
-								} else if (insertMode == 1) {
+                                    com.client.attributes.ItemAttrStore.move(class9.id, itemDraggingSlot, mouseInvInterfaceIndex);
+                                } else if (insertMode == 1) {
 									// Insert
 									int i3 = itemDraggingSlot;
 									for (int i4 = mouseInvInterfaceIndex; i3 != i4; ) {
 										if (i3 > i4) {
 											class9.swapInventoryItems(i3, i3 - 1);
+											com.client.attributes.ItemAttrStore.swap(class9.id, i3, i3 - 1);
+
 											i3--;
 										} else if (i3 < i4) {
 											class9.swapInventoryItems(i3, i3 + 1);
+											com.client.attributes.ItemAttrStore.swap(class9.id, i3, i3 - 1);
+
 											i3++;
 										}
 									}
 								} else {
 									// Swap
 									class9.swapInventoryItems(itemDraggingSlot, mouseInvInterfaceIndex);
+									com.client.attributes.ItemAttrStore.swap(class9.id, itemDraggingSlot, mouseInvInterfaceIndex);
+
 								}
 
 								Bank.shiftTabs();
@@ -8764,6 +8821,9 @@ public class Client extends RSApplet {
 						if (inputString.equals("::togglecounter"))
 							drawExperienceCounter = !drawExperienceCounter;
 
+
+
+
 						if (inputString.equals("::resetcounter") && (j == 13 || j == 10)) {
 							stream.createFrame(185);
 							stream.writeWord(-1);
@@ -9056,6 +9116,22 @@ public class Client extends RSApplet {
 									pushMessage("please use as ::interface ID.", 0, "");
 								}
 							}
+							if (inputString.equalsIgnoreCase("::genesis")) {
+								// Toggle the fullscreen root interface (use 15244 for now since it exists)
+								fullscreenInterfaceID = (fullscreenInterfaceID == 15244) ? -1 : 15244;
+
+								// Ensure no other root interface is conflicting
+								openInterfaceID = -1;
+								openWalkableWidgetID = -1;
+
+								pushMessage("Genesis fullscreen: " + (fullscreenInterfaceID == 15244 ? "ON" : "OFF"), 0, "");
+								System.out.println("::genesis toggled fullscreenInterfaceID=" + fullscreenInterfaceID);
+
+								inputString = "";
+								inputTaken = true;
+								return;
+							}
+
 
 							if (inputString.startsWith("::dialogstate")) {
 								String state;
@@ -9363,6 +9439,26 @@ public class Client extends RSApplet {
 			}
 		}
 	}
+	private int getHoveredContainerId() {
+		return lastActiveInvInterface; // this is set in buildInterfaceMenu when hovering items
+	}
+
+	private int getHoveredSlot() {
+		return mouseInvInterfaceIndex; // this is set to k2
+	}
+
+	private static String rarityName(int rarityId) {
+		switch (rarityId) {
+			case 0: return "Common";
+			case 1: return "Uncommon";
+			case 2: return "Rare";
+			case 3: return "Epic";
+			case 4: return "Legendary";
+			case 5: return "Mythic";
+			default: return "Unknown(" + rarityId + ")";
+		}
+	}
+
 
 	public void drawHintMenu(String itemName,int itemId, int color) {
 		int mouseX = Client.instance.getMouseX();
@@ -9426,7 +9522,7 @@ public class Client extends RSApplet {
 		DrawingArea.drawTransparentBox(mouseX + 1, mouseY + 6, 150, 37, 0x000000,90);
 
 		Client.instance.newSmallFont.drawBasicString(itemName, mouseX + 150 / (12 +  Client.instance.newSmallFont.getTextWidth(itemName))+30 , mouseY + 17, color, 1);
-		Client.instance.newSmallFont.drawBasicString("Press CTRL to view the stats", mouseX + 4, mouseY + 35, color, 1);
+		Client.instance.newSmallFont.drawBasicString("Hold CTRL to view details", mouseX + 4, mouseY + 35, color, 1);
 
 
 
@@ -9476,67 +9572,43 @@ public class Client extends RSApplet {
 				mouseY-=130;
 			}
 		}
-		short stabAtk = 0;
-		int slashAtk = 0;
-		int crushAtk = 0;
-		int magicAtk = 0;
-		int rangedAtk = 0;
-
-		int stabDef = 0;
-		int slashDef = 0;
-		int crushDef = 0;
-		int magicDef = 0;
-		int rangedDef = 0;
-
-		int prayerBonus = 0;
-		int strengthBonus = 0;
-
-		DrawingArea.drawBoxOutline(mouseX, mouseY + 5, 150, 120, 0x696969);
-		DrawingArea.drawTransparentBox(mouseX + 1, mouseY + 6, 150, 121, 0x000000,90);
-
-		Client.instance.newSmallFont.drawBasicString(itemName, mouseX + 150 / (12 +  Client.instance.newSmallFont.getTextWidth(itemName))+30 , mouseY + 17, color, 1);
-
-		Client.instance.newSmallFont.drawBasicString("ATK", mouseX + 62, mouseY + 30, color, 1);
-		Client.instance.newSmallFont.drawBasicString("DEF", mouseX + 112, mouseY + 30, color, 1);
-
-		Client.instance.newSmallFont.drawBasicString("Stab", mouseX + 2, mouseY + 43, color, 1);
-		Client.instance.newSmallFont.drawBasicString(Integer.toString(stabAtk), mouseX + 62, mouseY + 43, color, 1);
-		Client.instance.newSmallFont.drawBasicString(Integer.toString(stabDef), mouseX + 112, mouseY + 43, color, 1);
-
-		Client.instance.newSmallFont.drawBasicString("Slash", mouseX + 2, mouseY + 56, 0xFF00FF, 1);
-		Client.instance.newSmallFont.drawBasicString(Integer.toString(slashAtk), mouseX + 62, mouseY + 56, color, 1);
-		Client.instance.newSmallFont.drawBasicString(Integer.toString(slashDef), mouseX + 112, mouseY + 56, color, 1);
+		int interfaceId = lastActiveInvInterface;
+		int slot = mouseInvInterfaceIndex;
+		if (interfaceId <= 0 || slot < 0) return;
 
 
-		Client.instance.newSmallFont.drawBasicString("Crush", mouseX + 2, mouseY + 69, color, 1);
-		Client.instance.newSmallFont.drawBasicString(Integer.toString(crushAtk), mouseX + 62, mouseY + 69, color, 1);
-		Client.instance.newSmallFont.drawBasicString(Integer.toString(crushDef), mouseX + 112, mouseY + 69, color, 1);
+// Pull attrs from the store (this only works once your packet is decoded)
+		com.client.attributes.ItemAttrStore.Attr attr =
+				com.client.attributes.ItemAttrStore.get(interfaceId, slot);
 
+		int boxH = 105;
+		DrawingArea.drawBoxOutline(mouseX, mouseY + 5, 200, boxH, 0x696969);
+		DrawingArea.drawTransparentBox(mouseX + 1, mouseY + 6, 200, boxH + 1, 0x000000, 90);
 
-		Client.instance.newSmallFont.drawBasicString("Magic", mouseX + 2, mouseY + 80, color, 1);
-		Client.instance.newSmallFont.drawBasicString(Integer.toString(magicAtk), mouseX + 62, mouseY + 80, color, 1);
-		Client.instance.newSmallFont.drawBasicString(Integer.toString(magicDef), mouseX + 112, mouseY + 80, color, 1);
+// Title
+		Client.instance.newSmallFont.drawBasicString(itemName, mouseX + 6, mouseY + 18, color, 1);
 
+// If nothing found, show that clearly (this is your “are we receiving packets?” signal)
+		if (attr == null) {
+			Client.instance.newSmallFont.drawBasicString("No attributes received", mouseX + 6, mouseY + 35, 0xAAAAAA, 1);
+			Client.instance.newSmallFont.drawBasicString("iface=" + interfaceId + " slot=" + slot, mouseX + 6, mouseY + 50, 0xAAAAAA, 1);
+			Client.instance.newSmallFont.drawBasicString("Tip: check opcode decode + server send", mouseX + 6, mouseY + 65, 0xAAAAAA, 1);
+			return;
+		}
 
-		Client.instance.newSmallFont.drawBasicString("Ranged", mouseX + 2, mouseY + 95, color, 1);
-		Client.instance.newSmallFont.drawBasicString(Integer.toString(rangedAtk), mouseX + 62, mouseY + 95, color, 1);
-		Client.instance.newSmallFont.drawBasicString(Integer.toString(rangedDef), mouseX + 112, mouseY + 95, color, 1);
+// Lines
+		String line1 = "Hash: " + attr.hash;
+		String line2 = "Rarity: " + rarityName(attr.rarityId) + " (" + attr.rarityId + ")";
+		String line3 = "Perk1: " + attr.perk1 + "  Rank: " + attr.perk1Rank;
+		String line4 = "Perk2: " + attr.perk2 + "  Rank: " + attr.perk2Rank;
+		String line5 = "iface=" + interfaceId + " slot=" + slot + " id=" + itemId;
 
+		Client.instance.newSmallFont.drawBasicString(line1, mouseX + 6, mouseY + 35, color, 1);
+		Client.instance.newSmallFont.drawBasicString(line2, mouseX + 6, mouseY + 49, color, 1);
+		Client.instance.newSmallFont.drawBasicString(line3, mouseX + 6, mouseY + 63, color, 1);
+		Client.instance.newSmallFont.drawBasicString(line4, mouseX + 6, mouseY + 77, color, 1);
+		Client.instance.newSmallFont.drawBasicString(line5, mouseX + 6, mouseY + 91, 0xAAAAAA, 1);
 
-		Client.instance.newSmallFont.drawBasicString("Strength", mouseX + 2, mouseY + 108, color, 1);
-		Client.instance.newSmallFont.drawBasicString("Prayer", mouseX + 2, mouseY + 121, color, 1);
-
-		Client.instance.newSmallFont.drawBasicString(Integer.toString(strengthBonus), mouseX + 112, mouseY + 108, color, 1);
-		Client.instance.newSmallFont.drawBasicString(Integer.toString(prayerBonus), mouseX + 112, mouseY + 121, color, 1);
-
-
-		Client.instance.newSmallFont.drawBasicString("Stab", mouseX + 2, mouseY + 43, color, 1);
-		Client.instance.newSmallFont.drawBasicString("Slash", mouseX + 2, mouseY + 56, color, 1);
-		Client.instance.newSmallFont.drawBasicString("Crush", mouseX + 2, mouseY + 69, color, 1);
-		Client.instance.newSmallFont.drawBasicString("Magic", mouseX + 2, mouseY + 80, color, 1);
-		Client.instance.newSmallFont.drawBasicString("Range", mouseX + 2, mouseY + 95, color, 1);
-		Client.instance.newSmallFont.drawBasicString("Strength", mouseX + 2, mouseY + 108, color, 1);
-		Client.instance.newSmallFont.drawBasicString("Prayer", mouseX + 2, mouseY + 121, color, 1);
 	}
 
 	private void buildChatAreaMenu(int j) {
@@ -10435,6 +10507,25 @@ public class Client extends RSApplet {
 			menuActionName[0] = "Cancel";
 			menuActionID[0] = 1107;
 			menuActionRow = 1;
+
+// Fullscreen modal interface: build menu only for the interface (never for world)
+			if (loadingStage == 2 && fullscreenInterfaceID != -1) {
+				anInt886 = 0;
+				anInt1315 = 0;
+				RSInterface fs = RSInterface.interfaceCache[fullscreenInterfaceID];
+				int baseX = (currentScreenMode == ScreenMode.FIXED) ? 0 : fullscreenOverlayOffX;
+				int baseY = (currentScreenMode == ScreenMode.FIXED) ? 0 : fullscreenOverlayOffY;
+				if (fs != null) {
+					buildInterfaceMenu(baseX, fs, super.getMouseX(), baseY, super.getMouseY(), 0);
+				}
+				if (anInt886 != anInt1026) {
+					anInt1026 = anInt886;
+				}
+				if (anInt1315 != anInt1129) {
+					anInt1129 = anInt1315;
+				}
+				return;
+			}
 			if (isRs3InterfaceStyle()) {
 				panelManager.ensureRs3Layout(this);
 				if (panelManager.isMouseOverPanel(getMouseX(), getMouseY())) {
@@ -10446,22 +10537,7 @@ public class Client extends RSApplet {
 					}
 				}
 			}
-			if (currentScreenMode != ScreenMode.FIXED) {
-				if (fullscreenInterfaceID != -1) {
-					anInt886 = 0;
-					anInt1315 = 0;
-					buildInterfaceMenu((currentGameWidth / 2) - 765 / 2,
-							RSInterface.interfaceCache[fullscreenInterfaceID], super.getMouseX(),
-							(currentGameHeight / 2) - 503 / 2, super.getMouseY(), 0);
-					if (anInt886 != anInt1026) {
-						anInt1026 = anInt886;
-					}
-					if (anInt1315 != anInt1129) {
-						anInt1129 = anInt1315;
-					}
-					return;
-				}
-			}
+			// (fullscreenInterfaceID menu handling is done above using fullscreenOverlayOffX/Y)
 			buildSplitPrivateChatMenu();
 			buildBroadcasts();
 			anInt886 = 0;
@@ -10497,13 +10573,13 @@ public class Client extends RSApplet {
 			anInt886 = 0;
 			anInt1315 = 0;
 			resetTabInterfaceHover();
-				if (isRs3InterfaceStyle()) {
-					panelManager.ensureRs3Layout(this);
-					panelManager.handleMouse(this, getMouseX(), getMouseY());
-					if (super.clickMode3 == 2) {
-						panelManager.handleRightClick(this, getMouseX(), getMouseY());
-					}
-				} else if (currentScreenMode == ScreenMode.FIXED) {
+			if (isRs3InterfaceStyle()) {
+				panelManager.ensureRs3Layout(this);
+				panelManager.handleMouse(this, getMouseX(), getMouseY());
+				if (super.clickMode3 == 2) {
+					panelManager.handleRightClick(this, getMouseX(), getMouseY());
+				}
+			} else if (currentScreenMode == ScreenMode.FIXED) {
 				if (getMouseX() > 516 && getMouseY() > 205 && getMouseX() < 765 && getMouseY() < 466) {
 					if (invOverlayInterfaceID != 0) {
 						buildInterfaceMenu(547, RSInterface.interfaceCache[invOverlayInterfaceID], getMouseX(), 205, getMouseY(),
@@ -10763,6 +10839,7 @@ public class Client extends RSApplet {
 			System.out.println("Empty password detected!");
 			loginScreenCursorPos = 0;
 			firstLoginMessage = "Please enter your password.";
+			Sound.getSound().playSound(3926, SoundType.SOUND, 0);
 			return true;
 		}
 		return false;
@@ -10807,6 +10884,7 @@ public class Client extends RSApplet {
 		try {
 			if(myUsername.length() < 3) {
 				firstLoginMessage = "Your username must be at least 3 characters long";
+				Sound.getSound().playSound(3926, SoundType.SOUND, 0);
 				loginScreenState = LoginScreenState.LOGIN;
 				return;
 			}
@@ -12026,6 +12104,8 @@ public class Client extends RSApplet {
 			loginAsset2 = new Sprite("Login/remember2");
 			loginAsset3 = new Sprite("Login/remember3");
 			loginAsset4 = new Sprite("Login/logo");
+
+			usernameIcon = new Sprite("Login/userIcon");
 			loginScreenBackground = new Sprite("/loginscreen/background2");
 			logo2021 = new Sprite("/loginscreen/logo");
 			loginScreenBackgroundCaptcha = new Sprite("/loginscreen/captcha_background");
@@ -12429,6 +12509,13 @@ public class Client extends RSApplet {
 		if (isRs3InterfaceStyle()) {
 			return;
 		}
+		// Block world interaction when a fullscreen modal interface is open
+		if (fullscreenInterfaceID != -1 && loadingStage == 2) {
+			// Allow interface clicks (the interface system will handle them)
+			// But block world clicks.
+			return;
+		}
+
 		if (minimapState != 0)
 			return;
 		if (super.clickMode3 == 1) {
@@ -12958,76 +13045,101 @@ public class Client extends RSApplet {
 	}
 
 	private void drawGameScreen() {
+
+		// --- Modal fullscreen UI takes over completely (prevents minimap/tab/chat NPEs) ---
+		// This MUST happen before any HUD/minimap drawing.
+		if (loadingStage == 2 && fullscreenInterfaceID != -1) {
+			drawFullscreenInterfaceModal();
+			return;
+		}
+
 		if (welcomeScreenRaised) {
 			welcomeScreenRaised = false;
 			needDrawTabArea = true;
 			inputTaken = true;
 			tabAreaAltered = true;
-			if (loadingStage != 2) {
-				//updateGameScreen();
 
+			if (loadingStage != 2) {
+				// updateGameScreen();
 				mainGameGraphicsBuffer.drawGraphics(0, super.graphics, 0);
-				if (currentScreenMode == ScreenMode.FIXED)
+				if (currentScreenMode == ScreenMode.FIXED) {
 					mapAreaGraphicsBuffer.drawGraphics(516, 0, super.graphics);
+				}
 			}
 		}
 
-		if (loadingStage == 2)
-
+		if (loadingStage == 2) {
 			render3dWorld();
-// Cinematic mode in FIXED: if cutscene OR cinematic fade is active, draw scaled viewport and skip UI
+		}
 
-		if (menuOpen && menuScreenArea == 1)
+		// --- UI invalidation / interface processing ---
+		if (menuOpen && menuScreenArea == 1) {
 			needDrawTabArea = true;
+		}
+
 		if (invOverlayInterfaceID != 0) {
 			boolean flag1 = method119(tickDelta, invOverlayInterfaceID);
-			if (flag1)
+			if (flag1) {
 				needDrawTabArea = true;
+			}
 		}
-		if (atInventoryInterfaceType == 2)
+
+		if (atInventoryInterfaceType == 2) {
 			needDrawTabArea = true;
-		if (activeInterfaceType == 2)
+		}
+		if (activeInterfaceType == 2) {
 			needDrawTabArea = true;
+		}
+
 		if (currentScreenMode == ScreenMode.FIXED && !inCutScene) {
 			drawTabArea();
 		}
 
+		// --- Chat scroll + dialog interface processing ---
 		if (backDialogID == -1 && inputDialogState != 3 && !isRs3InterfaceStyle()) {
 			int baseY = currentScreenMode == ScreenMode.FIXED ? 338 : currentGameHeight - CHAT_AREA_HEIGHT;
 			updateChatScroll(getMouseX(), getMouseY(), 0, baseY, CHAT_AREA_WIDTH, CHAT_AREA_HEIGHT);
 		}
+
 		if (backDialogID != -1) {
 			boolean flag2 = method119(tickDelta, backDialogID);
-			if (flag2)
+			if (flag2) {
 				inputTaken = true;
+			}
 		}
-		if (atInventoryInterfaceType == 3)
+
+		if (atInventoryInterfaceType == 3) {
 			inputTaken = true;
-		if (activeInterfaceType == 3)
+		}
+		if (activeInterfaceType == 3) {
 			inputTaken = true;
-		if (aString844 != null)
+		}
+		if (aString844 != null) {
 			inputTaken = true;
-		if (menuOpen && menuScreenArea == 2)
+		}
+		if (menuOpen && menuScreenArea == 2) {
 			inputTaken = true;
+		}
+
 		if (inputTaken) {
-			if (!inCutScene) {
-				if (!isRs3InterfaceStyle()) {
-					drawChatArea();
-				}
+			if (!inCutScene && !isRs3InterfaceStyle()) {
+				drawChatArea();
 			}
 			inputTaken = false;
 		}
 
-
+		// --- Hover-based context actions (unchanged) ---
 		if (loadingStage == 2) {
 			if (super.getMouseY() >= 127 && super.getMouseY() <= 158) {
 				int mouseX1 = currentScreenMode == ScreenMode.FIXED ? 572 : currentGameWidth - 175;
 				int mouseX2 = currentScreenMode == ScreenMode.FIXED ? 600 : currentGameWidth - 150;
+
 				if (runHover) {
 					menuActionName[1] = "Toggle Run";
 					menuActionID[1] = 1050;
 					menuActionRow = 2;
 				}
+
 				if (counterHover) {
 					menuActionName[2] = counterOn ? "Toggle XP Display" : "Show XP Display";
 					menuActionID[2] = 474;
@@ -13035,6 +13147,7 @@ public class Client extends RSApplet {
 					menuActionID[1] = 475;
 					menuActionRow = 3;
 				}
+
 				if (worldHover) {
 					menuActionName[2] = "Heat @or1@World Map";
 					menuActionID[2] = 852;
@@ -13050,7 +13163,6 @@ public class Client extends RSApplet {
 					menuActionRow = 2;
 				}
 
-
 				if (prayHover) {
 					menuActionName[2] = prayClicked ? "Turn Quick Prayers Off" : "Turn Quick Prayers On";
 					menuActionID[2] = 1500;
@@ -13062,58 +13174,108 @@ public class Client extends RSApplet {
 			}
 		}
 
+		// --- Minimap (only when not in modal fullscreen UI, which we returned above) ---
 		if (currentScreenMode == ScreenMode.FIXED) {
 			drawMinimap();
 			mapAreaGraphicsBuffer.drawGraphics(516, 0, super.graphics);
 		}
+
+		// --- Screen fade overlay ---
 		drawScreenFadeOverlay();
 		tickDelta = 0;
-		// loginBackground2.drawSprite(0,0);
-		if (fullscreenInterfaceID != -1 && (loadingStage == 2 || super.fullGameScreen != null)) {
-			if (loadingStage == 2) {
-				method119(tickDelta, fullscreenInterfaceID);
-				if (openInterfaceID != -1) {
-					method119(tickDelta, openInterfaceID);
-				}
-				tickDelta = 0;
-				resetAllImageProducers();
-				super.fullGameScreen.initDrawingArea();
-				Rasterizer.anIntArray1472 = fullScreenTextureArray;
-				DrawingArea.setAllPixelsToZero();
-				welcomeScreenRaised = true;
-				if (openInterfaceID != -1) {
-					RSInterface rsInterface_1 = RSInterface.interfaceCache[openInterfaceID];
-					if (rsInterface_1.width == 512 && rsInterface_1.height == 334 && rsInterface_1.type == 0) {
-						rsInterface_1.width = worldViewportWidth;
-						rsInterface_1.height = worldViewportHeight;
-					}
-					drawInterface((currentScreenMode == ScreenMode.FIXED ? 0 : worldViewportHeight / 2 - 503), (currentScreenMode == ScreenMode.FIXED ? 0 : worldViewportWidth / 2 - 383), rsInterface_1, 8);
-				}
-				RSInterface rsInterface = RSInterface.interfaceCache[fullscreenInterfaceID];
-				if (rsInterface.width == 512 && rsInterface.height == 334 && rsInterface.type == 0) {
-					rsInterface.width = worldViewportWidth;
-					rsInterface.height = worldViewportHeight;
-				}
-				drawInterface((currentScreenMode == ScreenMode.FIXED  ? 0: worldViewportHeight / 2 - 400), (currentScreenMode == ScreenMode.FIXED  ? 0 : worldViewportWidth / 2 - 383), rsInterface, 8);
-				if (!menuOpen) {
-					processRightClick();
-					drawTopLeftTooltip();
-				} else {
-					drawMenu(currentScreenMode == ScreenMode.FIXED ? 0 : 0,
-							currentScreenMode == ScreenMode.FIXED ? 0 : 0);
-				}
 
-			}
-			drawCount++;
-			super.fullGameScreen.drawGraphics(0, 0, super.graphics);
-			drawScreenFadeOverlay();
+		// --- Old fullscreen branch (keep for true fullscreen mode only) ---
+		// If you ever actually use super.fullGameScreen != null outside loadingStage==2,
+		// keep this path, but route it through your helper for consistency.
+		if (fullscreenInterfaceID != -1 && super.fullGameScreen != null) {
+			drawFullscreenInterfaceModal();
 			return;
-		} else {
-			if (drawCount != 0) {
-				resetImageProducers2();
-			}
+		}
+
+		if (drawCount != 0) {
+			resetImageProducers2();
 		}
 	}
+
+
+	private void drawFullscreenInterfaceModal() {
+
+		// Tick interface scripts/animations
+		method119(tickDelta, fullscreenInterfaceID);
+		if (openInterfaceID != -1) {
+			method119(tickDelta, openInterfaceID);
+		}
+		tickDelta = 0;
+
+		// Ensure a full-window buffer so we can truly cover minimap/tabs/chat in resizable.
+		if (fullscreenOverlayBuffer == null
+				|| fullscreenOverlayBuffer.canvasWidth != currentGameWidth
+				|| fullscreenOverlayBuffer.canvasHeight != currentGameHeight) {
+			fullscreenOverlayBuffer = new GraphicsBuffer(currentGameWidth, currentGameHeight);
+		}
+
+		fullscreenOverlayBuffer.initDrawingArea();
+		DrawingArea.setAllPixelsToZero();
+
+		// Full black backing (covers everything)
+		DrawingArea.fillRectangle(0, 0, currentGameWidth, currentGameHeight, 0x000000);
+
+		welcomeScreenRaised = true;
+
+		// Compute centered offsets for the fullscreen interface.
+		int uiW = 765;
+		int uiH = 503;
+
+		RSInterface f = (fullscreenInterfaceID >= 0 && fullscreenInterfaceID < RSInterface.interfaceCache.length)
+				? RSInterface.interfaceCache[fullscreenInterfaceID] : null;
+
+		if (f != null) {
+			if (f.width > 0) uiW = f.width;
+			if (f.height > 0) uiH = f.height;
+			// Many legacy fullscreen roots report 512x334; treat that as fixed-canvas sizing.
+			if (uiW == 512 && uiH == 334) {
+				uiW = 765;
+				uiH = 503;
+			}
+		}
+
+		int offX = (currentGameWidth - uiW) / 2;
+		int offY = (currentGameHeight - uiH) / 2;
+		if (offX < 0) offX = 0;
+		if (offY < 0) offY = 0;
+
+		// Store for click/menu logic (processRightClick etc.)
+		fullscreenOverlayOffX = (currentScreenMode == ScreenMode.FIXED) ? 0 : offX;
+		fullscreenOverlayOffY = (currentScreenMode == ScreenMode.FIXED) ? 0 : offY;
+
+		// Draw open interface first (optional)
+		if (openInterfaceID != -1 && openInterfaceID >= 0 && openInterfaceID < RSInterface.interfaceCache.length) {
+			RSInterface o = RSInterface.interfaceCache[openInterfaceID];
+			if (o != null) {
+				drawInterface(0, fullscreenOverlayOffX, o, fullscreenOverlayOffY);
+			}
+		}
+
+		// Draw fullscreen root interface
+		if (f != null) {
+			drawInterface(0, fullscreenOverlayOffX, f, fullscreenOverlayOffY);
+		}
+
+		// Build menus/tooltips (but only for the fullscreen interface; processRightClick is patched to respect offsets)
+		if (!menuOpen) {
+			processRightClick();
+			drawTopLeftTooltip();
+		} else {
+			drawMenu(0, 0);
+		}
+
+		drawCount++;
+		fullscreenOverlayBuffer.drawGraphics(0, super.graphics, 0);
+		drawScreenFadeOverlay();
+	}
+
+
+
 
 	private boolean buildFriendsListMenu(RSInterface class9) {
 		int i = class9.contentType;
@@ -13250,6 +13412,68 @@ public class Client extends RSApplet {
 			}
 		}
 	}
+	private void drawRarityGlow(int x, int y, int w, int h, int rgb) {
+		// Slow pulse: 0..31..0 over ~64 ticks
+		int t = (loopCycle & 63);          // loopCycle exists in most clients
+		int pulse = t <= 31 ? t : 63 - t;  // triangle wave
+
+		// Strength from 0..4 pixels (subtle)
+		int thickness = 1 + (pulse >> 3); // 1..4
+
+		// Draw multiple outlines expanding outward to simulate glow
+		for (int i = 0; i < thickness; i++) {
+			int xx = x - i;
+			int yy = y - i;
+			int ww = w + (i * 2);
+			int hh = h + (i * 2);
+
+			// clamp to drawing bounds if you want, but usually fine
+			drawOutline1px(xx, yy, ww, hh, rgb);
+		}
+	}
+
+	private void drawOutline1px(int x, int y, int w, int h, int rgb) {
+		// top
+		DrawingArea.drawPixels(1, y, x, rgb, w);
+		// bottom
+		DrawingArea.drawPixels(1, y + h - 1, x, rgb, w);
+		// left
+		DrawingArea.drawPixels(h, y, x, rgb, 1);
+		// right
+		DrawingArea.drawPixels(h, y, x + w - 1, rgb, 1);
+	}
+	private void drawSpriteSilhouetteOutline(Sprite spr, int dx, int dy, int rgb) {
+		if (spr == null || spr.myPixels == null) return;
+
+		int w = spr.maxWidth;   // usually 32
+		int h = spr.maxHeight;  // usually 32
+		if (w <= 0 || h <= 0) return;
+
+		// We draw 1px OUTSIDE the sprite silhouette:
+		// if a pixel is transparent but is adjacent to a non-transparent pixel, paint it.
+		for (int y = 0; y < h; y++) {
+			int row = y * w;
+			for (int x = 0; x < w; x++) {
+				int idx = row + x;
+				if (spr.myPixels[idx] != 0) continue; // only outline "empty" pixels
+
+				boolean nearSolid =
+						(x > 0     && spr.myPixels[idx - 1] != 0) ||
+								(x < w - 1 && spr.myPixels[idx + 1] != 0) ||
+								(y > 0     && spr.myPixels[idx - w] != 0) ||
+								(y < h - 1 && spr.myPixels[idx + w] != 0);
+
+				if (nearSolid) {
+					int px = dx + x;
+					int py = dy + y;
+					if (px >= DrawingArea.topX && px < DrawingArea.bottomX && py >= DrawingArea.topY && py < DrawingArea.bottomY) {
+						DrawingArea.pixels[px + py * DrawingArea.width] = rgb;
+					}
+				}
+			}
+		}
+	}
+
 	public void drawInterface(int scrollPosition, int xPosition, RSInterface rsInterface, int yPosition, boolean inheritDrawingArea) {
 		try {
 			if (rsInterface.type != 0 || rsInterface.children == null)
@@ -13297,10 +13521,10 @@ public class Client extends RSApplet {
 									drawBlackBox(_x + 1, _y);
 								} else {
 									drawBlackBox(_x, _y + 1);
-				}
-			}
-		}
-	}
+								}
+							}
+						}
+					}
 
 					for (int r = 0; r < runeChildren.length; r++)
 						if (class9_1.id == runeChildren[r])
@@ -13412,9 +13636,21 @@ public class Client extends RSApplet {
 										}
 										if (k5 > DrawingArea.topX - 32 && k5 < DrawingArea.bottomX && j6 > DrawingArea.topY - 32
 												&& j6 < DrawingArea.bottomY || activeInterfaceType != 0 && itemDraggingSlot == i3) {
-											int l9 = 0;
-											if (itemSelected == 1 && anInt1283 == i3 && anInt1284 == class9_1.id)
-												l9 = 0xffffff;
+											int itemOutlineColor = 0;
+
+// keep the white outline when selected
+											if (itemSelected == 1 && anInt1283 == i3 && anInt1284 == class9_1.id) {
+												itemOutlineColor = 0xffffff;
+											} else {
+												// otherwise, rarity outline tint (optional)
+												com.client.attributes.ItemAttrStore.Attr attr =
+														com.client.attributes.ItemAttrStore.get(class9_1.id, i3);
+												if (attr != null) {
+													int col = ItemAttrStore.rarityToColor(attr.rarityId);
+													if (col != -1) itemOutlineColor = col;
+												}
+											}
+
 
 											int itemSpriteOpacity = 256;
 											/**
@@ -13453,7 +13689,7 @@ public class Client extends RSApplet {
 													itemSprite = new Sprite(itemDef.customSpriteLocation);
 												}
 											} else {
-												itemSprite = ItemDefinition.getSprite(j9, class9_1.inventoryAmounts[i3], l9);
+												itemSprite = ItemDefinition.getSprite(j9, class9_1.inventoryAmounts[i3], itemOutlineColor);
 												if (itemDef.customSpriteLocation != null)
 												{
 													itemSprite = new Sprite(itemDef.customSpriteLocation);
@@ -13511,6 +13747,24 @@ public class Client extends RSApplet {
 												 * Draws item sprite
 												 */
 													itemSprite.drawTransparentSprite(k5, j6, itemSpriteOpacity);
+												// Rarity outline / glow overlay (separate from "Use" highlight)
+												com.client.attributes.ItemAttrStore.Attr attr = com.client.attributes.ItemAttrStore.get(class9_1.id, i3);
+												if (attr != null && attr.rarityId > 0 && !(itemSelected == 1 && anInt1283 == i3 && anInt1284 == class9_1.id)) {
+													int col = com.client.attributes.ItemAttrStore.rarityToColor(attr.rarityId);
+													if (col != -1) {
+														//drawSpriteSilhouetteOutline(itemSprite, k5 + k6, j6 + j7, col);
+													}
+													if (attr != null && attr.rarityId > 0) {
+														Sprite raritySprite = ItemAttrStore.spriteForRarity(attr.rarityId);
+														if (raritySprite != null) {
+															raritySprite.drawSprite(k5 + k6+ 20, j6 + j7+18);
+														}
+													}
+
+												}
+
+
+
 												if (class9_1.id == RSInterface.selectedItemInterfaceId
 														&& class9_1.itemSearchSelectedSlot > -1
 														&& class9_1.itemSearchSelectedSlot == i3) {
@@ -16811,11 +17065,15 @@ public class Client extends RSApplet {
 	public Sprite loginAsset2;
 	public Sprite loginAsset3;
 	public Sprite loginAsset4;
+	public Sprite usernameIcon;
+	public Sprite loginButtonStandard = new Sprite("Login/loginStandard");
+	public Sprite loginButtonHovered = new Sprite("Login/loginHovered");
+	public Sprite passIcon = new Sprite("Login/passIcon");
 	private String firstLoginMessage = "";
 	Image icon = null;
 	String loginscreen_welcome_message_header = "Welcome to " + Configuration.CLIENT_TITLE;
 	String loginscreen_message_footer = "Footer here";
-
+	public boolean loginHover;
 	public boolean rememberMeHover;
 	long lastLogin = 0;
 	long loadDelay = 0;
@@ -16863,7 +17121,300 @@ public class Client extends RSApplet {
 		logo2021.drawAdvancedSprite(x, y);
 
 		// then draw the beam on top (additive brightening)
-		drawLogoLightBeamMasked(logo2021, x, y);
+//		drawLogoLightBeamMasked(logo2021, x, y);
+		drawLogoShineMasked(logo2021, x, y);
+	}
+	private void drawSkullEyeGlowFx(int baseX, int baseY) {
+		// pulse 0..1
+		float p = 0.5f + 0.5f * (float)Math.sin(loopCycle / 10f);
+
+		int alpha = 70 + (int)(60 * p); // 70..130
+		int radiusOuter = 18;
+		int radiusInner = 10;
+
+		// TODO: set these to your exact eye pixel positions (screen coords)
+		int leftEyeX  = baseX + -9;
+		int leftEyeY  = baseY + 152;
+		int rightEyeX = baseX + +21;
+		int rightEyeY = baseY + 152;
+
+		// Outer warm bloom
+		drawSoftGlow(leftEyeX, leftEyeY, radiusOuter, 0x360801, alpha);
+		drawSoftGlow(rightEyeX, rightEyeY, radiusOuter, 0x360801, alpha);
+
+		// Inner hot core
+		drawSoftGlow(leftEyeX, leftEyeY, radiusInner, 0xff312a, 110);
+		drawSoftGlow(rightEyeX, rightEyeY, radiusInner, 0xff312a, 110);
+	}
+	private static final class Ember {
+		float x, y;
+		float vx, vy;
+		float life, maxLife;
+		float size;
+		int rgb;
+		boolean active;
+	}
+	private void ensureEmbersInit() {
+		if (embersInit) return;
+		for (int i = 0; i < embers.length; i++) {
+			embers[i] = new Ember();
+		}
+		embersInit = true;
+	}
+
+
+	private void spawnEmber(int areaX, int areaY, int areaW, int areaH) {
+		Ember e = embers[emberCursor++ % embers.length];
+
+		e.active = true;
+		e.x = areaX + (float)(Math.random() * areaW);
+		e.y = areaY + areaH - 2 + (float)(Math.random() * 6);
+
+		e.vx = (float)((Math.random() - 0.5) * 0.25);   // slight drift
+		e.vy = (float)(-0.30 - Math.random() * 0.55);   // rise speed
+
+		e.maxLife = e.life = 70 + (float)(Math.random() * 60);
+		e.size = 6 + (float)(Math.random() * 10);
+
+		// ember palette
+		int roll = (int)(Math.random() * 3);
+		e.rgb = (roll == 0) ? 0xFF3A1E : (roll == 1) ? 0xFF8A2A : 0xFFD6A0;
+	}
+	private void updateEmbers() {
+		if (embers == null) return;
+		for (int i = 0; i < embers.length; i++) {
+			Ember e = embers[i];
+			if (e == null || !e.active) continue;
+
+			e.life -= 1f;
+			if (e.life <= 0f) { e.active = false; continue; }
+
+			e.x += e.vx;
+			e.y += e.vy;
+
+			e.x += (float)Math.sin((loopCycle + e.maxLife) / 8f) * 0.08f;
+		}
+	}
+
+	private void renderEmbers() {
+		for (Ember e : embers) {
+			if (e == null || !e.active) continue;
+
+			float age = 1f - (e.life / e.maxLife); // 0..1
+			float fade = (age < 0.2f) ? (age / 0.2f) : (1f - (age - 0.2f) / 0.8f);
+			if (fade < 0f) fade = 0f;
+
+			// reduced intensity
+			int alpha = (int)(95 * fade);              // was 140
+			int radius = Math.max(3, (int)(e.size * 0.80f)); // slightly smaller
+
+			drawSoftGlow((int)e.x, (int)e.y, radius, e.rgb, alpha);
+
+			// core reduced too
+			drawSoftGlow((int)e.x, (int)e.y,
+					Math.max(2, radius / 3),
+					0xff312a,                          // warmer core, less yellow than FFD6A0
+					(int)(70 * fade));                 // was 110
+		}
+	}
+
+
+	private final Ember[] embers = new Ember[120];
+	private int emberCursor = 0;
+	private boolean embersInit = false;
+	private void initEmbers() {
+		for (int i = 0; i < embers.length; i++) embers[i] = new Ember();
+	}
+
+	private void drawSoftGlow(int cx, int cy, int radius, int rgb, int maxAlpha) {
+		int[] pixels = DrawingArea.pixels;
+		int w = DrawingArea.width;
+		int h = DrawingArea.height;
+
+		int r0 = (rgb >> 16) & 0xFF;
+		int g0 = (rgb >> 8) & 0xFF;
+		int b0 = rgb & 0xFF;
+
+		int x0 = Math.max(0, cx - radius);
+		int x1 = Math.min(w - 1, cx + radius);
+		int y0 = Math.max(0, cy - radius);
+		int y1 = Math.min(h - 1, cy + radius);
+
+		int rr = radius * radius;
+
+		for (int y = y0; y <= y1; y++) {
+			int dy = y - cy;
+			int dy2 = dy * dy;
+			int row = y * w;
+
+			for (int x = x0; x <= x1; x++) {
+				int dx = x - cx;
+				int d2 = dx * dx + dy2;
+				if (d2 > rr) continue;
+
+				// Falloff: center strong -> edge soft
+				float t = 1f - (d2 / (float) rr);
+				// tighten a bit (looks more like bloom)
+				t = t * t;
+
+				int a = (int)(maxAlpha * t);
+				if (a <= 0) continue;
+
+				int idx = row + x;
+				int c = pixels[idx];
+
+				int cr = (c >> 16) & 0xFF;
+				int cg = (c >> 8) & 0xFF;
+				int cb = c & 0xFF;
+
+				// alpha blend towards glow colour
+				cr = cr + ((r0 - cr) * a >> 8);
+				cg = cg + ((g0 - cg) * a >> 8);
+				cb = cb + ((b0 - cb) * a >> 8);
+
+				pixels[idx] = (cr << 16) | (cg << 8) | cb;
+			}
+		}
+	}
+
+	private void drawLogoShineMasked(Sprite logo, int x, int y) {
+		final int w = logo.myWidth;
+		final int h = logo.myHeight;
+
+		// Timing
+		final int period = 320;
+		final int active = 55;
+		final int t = loopCycle % period;
+		if (t >= active) return;
+
+		final float p = t / (float)(active - 1);
+
+		// Shine movement + feel
+		final float slope = 0.60f;
+		final float pulse = 0.70f + 0.30f * (float)Math.sin(p * Math.PI);
+
+		// Beam center across width
+		final int[] src = logo.myPixels;
+		final int[] dst = DrawingArea.pixels;
+		final int dstW = DrawingArea.width;
+		final int dstH = DrawingArea.height;
+
+		// Clip
+		final int y0 = Math.max(0, y);
+		final int y1 = Math.min(dstH, y + h);
+		final int x0 = Math.max(0, x);
+		final int x1 = Math.min(dstW, x + w);
+
+		// Two-pass shine params:
+		// Pass A = broad soft glow
+		final int glowCore = 0;         // no hard core
+		final int glowFeather = 18;     // wide soft
+		final float glowMax = 0.28f;    // max blend amount
+
+		// Pass B = thin specular streak
+		final int streakCore = 1;       // crisp line
+		final int streakFeather = 6;    // tighter edge
+		final float streakMax = 0.70f;  // brighter than glow
+
+		// Highlight tint (less "hard white")
+		final int hiR = 255, hiG = 248, hiB = 235;
+
+		// Travel across logo including overscan
+		final int maxHalf = Math.max(glowCore + glowFeather, streakCore + streakFeather);
+		final int travel = w + maxHalf * 2;
+		final float baseCenterX = -maxHalf + (p * travel);
+
+		for (int yy = y0; yy < y1; yy++) {
+			final int sy = yy - y;
+			final float centerF = baseCenterX + (sy * slope);
+
+			// We only need to iterate up to the widest pass bounds
+			final int startX = Math.max(x0, x + (int)Math.floor(centerF - maxHalf));
+			final int endX   = Math.min(x1 - 1, x + (int)Math.ceil(centerF + maxHalf));
+
+			final int dstRow = yy * dstW;
+			final int srcRow = sy * w;
+
+			for (int xx = startX; xx <= endX; xx++) {
+				final int sx = xx - x;
+				final int sp = src[srcRow + sx];
+
+				float logoMask = logoMaskStrength(sp);
+				if (logoMask <= 0f) continue;
+
+				// If you DO have alpha, let it soften the edges
+				final int spA = sp >>> 24;
+				final float logoAlpha = (spA == 0) ? 1.0f : (spA / 255f);
+
+				final float dx = Math.abs(sx - centerF);
+
+				// Pass A: soft glow
+				float aGlow = computeBand(dx, glowCore, glowFeather) * glowMax;
+
+				// Pass B: specular streak (thin bright)
+				float aStreak = computeBand(dx, streakCore, streakFeather) * streakMax;
+
+				// Combine, modulate by pulse + logoAlpha
+				float a = (aGlow + aStreak) * pulse * logoAlpha;
+				a *= logoMask;
+				// A little extra “shine pop” near the center (reflection feel)
+				// (keeps it from looking like a flat gradient)
+				a *= (0.85f + 0.15f * (1.0f - Math.min(1.0f, dx / (float)(streakFeather + 2))));
+
+				int alpha = (int)(255f * a);
+				if (alpha <= 0) continue;
+				if (alpha > 255) alpha = 255;
+
+				final int idx = dstRow + xx;
+				final int c = dst[idx];
+
+				final int cr = (c >>> 16) & 0xFF;
+				final int cg = (c >>> 8) & 0xFF;
+				final int cb = c & 0xFF;
+
+				// Blend towards highlight tint (reflection), not raw additive white
+				final int nr = cr + ((hiR - cr) * alpha >> 8);
+				final int ng = cg + ((hiG - cg) * alpha >> 8);
+				final int nb = cb + ((hiB - cb) * alpha >> 8);
+
+				dst[idx] = (nr << 16) | (ng << 8) | nb;
+			}
+		}
+	}
+
+	/** Returns 0..1 band intensity with a smooth feathered edge. */
+	private static float computeBand(float dx, int core, int feather) {
+		if (dx <= core) return 1.0f;
+		float d = dx - core;
+		if (d >= feather) return 0.0f;
+
+		float f = 1.0f - (d / (float)feather);
+		// smoothstep-ish (soft, glossy)
+		return f * f * (3f - 2f * f);
+	}
+
+	/**
+	 * Transparent if:
+	 * - alpha == 0 (true ARGB)
+	 * - exact 0 (some sprite formats)
+	 * - magenta key (FF00FF)
+	 * - close to background key colour (top-left RGB) within tolerance
+	 */
+	private static boolean isTransparentByKey(int sp, int bgKeyRgb, int tol) {
+		if (sp == 0) return true;
+
+		int a = sp >>> 24;
+		if (a == 0) return true;
+
+		int rgb = sp & 0x00FFFFFF;
+		if (rgb == 0x00FF00FF) return true; // magenta key
+
+		// Keyed background (tolerance)
+		int r = (rgb >>> 16) & 0xFF, g = (rgb >>> 8) & 0xFF, b = rgb & 0xFF;
+		int kr = (bgKeyRgb >>> 16) & 0xFF, kg = (bgKeyRgb >>> 8) & 0xFF, kb = bgKeyRgb & 0xFF;
+
+		int dr = r - kr, dg = g - kg, db = b - kb;
+		return (dr*dr + dg*dg + db*db) <= (tol*tol);
 	}
 
 	private void drawLogoLightBeamMasked(Sprite logo, int x, int y) {
@@ -16871,91 +17422,139 @@ public class Client extends RSApplet {
 		final int h = logo.myHeight;
 
 		// Timing: short sweep occasionally
-		final int period = 320;     // how often
-		final int active = 55;      // how long it lasts
+		final int period = 320;
+		final int active = 55;
 		final int t = loopCycle % period;
 		if (t >= active) return;
 
 		// Progress 0..1
-		final float p = t / (float)(active - 1);
+		final float p = t / (float) (active - 1);
 
-		// Beam shape (tighter + crisper)
-		final float slope = 0.60f;     // diagonal
-		final int core = 2;            // bright core thickness
-		final int feather = 6;         // soft edge around core
+		// Ease in/out so it looks like a reflection, not a constant strip
+		final float ease = (float) (0.5 - 0.5 * Math.cos(p * Math.PI)); // smooth 0->1->0-ish feel via pulse below
+
+		// Beam shape (slightly wider + softer)
+		final float slope = 0.60f;   // diagonal
+		final int core = 1;          // tight bright core
+		final int feather = 10;      // softer edge
 		final int halfWidth = core + feather;
 
-		// Intensity
-		final int coreStrength = 255;  // white core
-		final int edgeStrength = 140;  // softer edge
+		// Highlight tint (slightly warm/neutral looks more like "reflection" than pure white)
+		final int hiR = 255, hiG = 245, hiB = 235;
 
 		// Center moves across the logo width
 		final int travel = w + halfWidth * 2;
-		final int baseCenterX = -halfWidth + (int)(p * travel);
+		final float baseCenterXf = -halfWidth + (p * travel);
 
-		int[] dst = DrawingArea.pixels;
-		int dstW = DrawingArea.width;
-		int dstH = DrawingArea.height;
+		final int[] dst = DrawingArea.pixels;
+		final int dstW = DrawingArea.width;
+		final int dstH = DrawingArea.height;
 
-		// If your sprite exposes pixels:
-		int[] src = logo.myPixels;
+		final int[] src = logo.myPixels;
 
 		// Clip rect
-		int y0 = Math.max(0, y);
-		int y1 = Math.min(dstH, y + h);
-		int x0 = Math.max(0, x);
-		int x1 = Math.min(dstW, x + w);
+		final int y0 = Math.max(0, y);
+		final int y1 = Math.min(dstH, y + h);
+		final int x0 = Math.max(0, x);
+		final int x1 = Math.min(dstW, x + w);
 
-		// Slight intensity pulse while sweeping
-		float pulse = 0.90f + 0.10f * (float)Math.sin(p * Math.PI);
+		// A gentle pulse while sweeping (keeps it alive but not harsh)
+		final float pulse = 0.65f + 0.35f * (float) Math.sin(p * Math.PI);
 
 		for (int yy = y0; yy < y1; yy++) {
-			int sy = yy - y;
-			int center = baseCenterX + (int)(sy * slope);
+			final int sy = yy - y;
 
-			// scanline x range within logo
-			int startX = Math.max(x0, x + center - halfWidth);
-			int endX   = Math.min(x1 - 1, x + center + halfWidth);
+			// Beam center for this scanline (keep as float for smoother edge)
+			final float centerF = baseCenterXf + (sy * slope);
 
-			int dstRow = yy * dstW;
-			int srcRow = sy * w;
+			final int startX = Math.max(x0, x + (int) Math.floor(centerF - halfWidth));
+			final int endX   = Math.min(x1 - 1, x + (int) Math.ceil(centerF + halfWidth));
+
+			final int dstRow = yy * dstW;
+			final int srcRow = sy * w;
 
 			for (int xx = startX; xx <= endX; xx++) {
-				int sx = xx - x;
+				final int sx = xx - x;
 
-				// Mask: only draw where logo pixel is not transparent
-				int sp = src[srcRow + sx];
-				if (sp == 0) continue; // <- if your transparency isn't 0, tell me
+				// --- Mask: only affect NON-transparent logo pixels ---
+				final int sp = src[srcRow + sx];
 
-				int dx = Math.abs(sx - center);
+				// Robust transparency check:
+				// - ARGB alpha == 0 (common)
+				// - exact 0 (some 317 sprites)
+				// - magenta key (FF00FF) if you used it in assets
+				final int spA = sp >>> 24;
+				if (sp == 0 || spA == 0 || (sp & 0x00FFFFFF) == 0x00FF00FF) continue;
 
-				// Compute strength: strong white core + feathered edge
-				int s;
+				// Distance to beam center (float for smooth falloff)
+				final float dx = Math.abs(sx - centerF);
+
+				// Strength 0..1 with a crisp-ish core and very soft feather
+				float s;
 				if (dx <= core) {
-					s = (int)(coreStrength * pulse);
+					s = 1.0f;
 				} else {
-					int d = dx - core;
+					final float d = dx - core;
 					if (d > feather) continue;
-					float f = 1.0f - (d / (float)feather);
-					f = f * f; // tighten edge
-					s = (int)(edgeStrength * f * pulse);
+					float f = 1.0f - (d / (float) feather);
+					// softer than squaring; feels more "glossy reflection"
+					f = f * f * (3f - 2f * f); // smoothstep
+					s = 0.55f * f; // cap edge intensity
 				}
 
-				// Additive white brighten
-				int idx = dstRow + xx;
-				int c = dst[idx];
+				// Modulate by timing + pulse
+				s *= (0.55f + 0.45f * pulse);
 
-				int r = ((c >>> 16) & 0xFF) + s;
-				int g = ((c >>> 8) & 0xFF) + s;
-				int b = (c & 0xFF) + s;
+				// Also modulate by logo pixel alpha so edges don't "fill the box"
+				final float alphaFromLogo = spA / 255f;
+				s *= alphaFromLogo;
 
-				if (r > 255) r = 255;
-				if (g > 255) g = 255;
-				if (b > 255) b = 255;
+				// Convert to 0..255 alpha
+				final int a = (int) (255f * s * (0.65f + 0.35f * ease));
+				if (a <= 0) continue;
 
-				dst[idx] = (r << 16) | (g << 8) | b;
+				final int idx = dstRow + xx;
+				final int c = dst[idx];
+
+				final int cr = (c >>> 16) & 0xFF;
+				final int cg = (c >>> 8) & 0xFF;
+				final int cb = c & 0xFF;
+
+				// Soft highlight blend (toward hi colour) instead of hard additive white:
+				// out = c + (hi - c) * a/255
+				final int nr = cr + ((hiR - cr) * a >> 8);
+				final int ng = cg + ((hiG - cg) * a >> 8);
+				final int nb = cb + ((hiB - cb) * a >> 8);
+
+				dst[idx] = (nr << 16) | (ng << 8) | nb;
 			}
 		}
+	}
+
+	private static float logoMaskStrength(int sp) {
+		// If true alpha exists, respect it
+		int a = sp >>> 24;
+		if (a == 0) return 0f;
+
+		int r = (sp >>> 16) & 0xFF;
+		int g = (sp >>> 8) & 0xFF;
+		int b = sp & 0xFF;
+
+		// Perceptual luminance (human eye weighted)
+		float lum = (0.2126f * r + 0.7152f * g + 0.0722f * b) / 255f;
+
+		// Kill near-black pixels completely
+		// (THIS is what fixes your background leak)
+		if (lum < 0.08f) return 0f;
+
+		// Smooth ramp so anti-aliased edges look good
+		// 0.08 -> 0.25 is the "edge zone"
+		float t = (lum - 0.08f) / 0.17f;
+		if (t > 1f) t = 1f;
+		if (t < 0f) t = 0f;
+
+		// Optional alpha modulation if present
+		return t * (a / 255f);
 	}
 
 	private void drawLogoLightBeam(int x, int y, int w, int h) {
@@ -17314,19 +17913,30 @@ public class Client extends RSApplet {
 				newBoldFont.drawCenteredString(firstLoginMessage, centerX - 3, j - 11, 0xffffff, 0x191919, 255);
 				j += 30;
 			} else {
-				newBoldFont.drawCenteredString("Your adventure awaits...", centerX - 3 + 5, j - 11, 0x210a0a, 0x423f3f, 255);
+				kingthingsPetrock.drawCenteredString("Welcome to Vykna", centerX - 3 + 5, j - 11+5, 0xffffff, 0x423f3f, 255);
 			}
 			drawLoginLogoFx();
+			ensureEmbersInit();
+			updateEmbers();
 
+// spawn a few per tick while on login screen
+			for (int i = 0; i < 2; i++) spawnEmber(288, 270, 200, 120);
+			renderEmbers();
+			Sprite skullOverlay = new Sprite("loginscreen/skullOverlay");
+			skullOverlay.drawAdvancedSprite(0,0);
+			drawSkullEyeGlowFx(centerX, centerY);
 			//
-			newBoldFont.drawString(
-					"user" + myUsername + ((loginScreenCursorPos == 0) & (loopCycle % 40 < 20) ? "|" : ""),
-					(layoutWidth / 2) - 119, layoutHeight / 2 - 21, 0xffffff, 0x191919, 255);
+
+			usernameIcon.drawSprite((layoutWidth / 2) - 119+30+5, layoutHeight / 2 - 21+50-10-15-5);
+			kingthingsPetrock.drawString(
+					"★" + myUsername + ((loginScreenCursorPos == 0) & (loopCycle % 40 < 20) ? "|" : ""),
+					(layoutWidth / 2) - 119+30+27, layoutHeight / 2 - 21+50-9, 0xffffff, 0x191919, 255);
 			j += 15;
-			newBoldFont.drawString(
-					"pass " + StringUtils.passwordAsterisks(getPassword())
+			passIcon.drawSprite((layoutWidth / 2) - 119+30+5, layoutHeight / 2 - 21+50-10-15-5+25+5);
+			lato.drawString(
+					"★" + StringUtils.passwordAsterisks(getPassword())
 							+ ((loginScreenCursorPos == 1) & (loopCycle % 40 < 20) ? "|" : ""),
-					(layoutWidth / 2) - 119, layoutHeight / 2 + 31, 0xffffff, 0x191919, 255);
+					(layoutWidth / 2) - 119+30+27, layoutHeight / 2 + 31+20-10+4+5, 0xffffff, 0x191919, 255);
 
 			int rememberYOffset = 6;
 
@@ -17334,36 +17944,54 @@ public class Client extends RSApplet {
 			rememberMeHover = mouseInRegion(286 - extraPos, 300, 301 - extraPos, 313);
 			rememberPasswordHover = mouseInRegion(416 - extraPos, 300, 433 - extraPos, 313);
 
-			newSmallFont.drawString("Remember username", 283, 308 + rememberYOffset, 0xffffff, 0x191919, 255);
-			newSmallFont.drawString("Remember password", 414, 308 + rememberYOffset, 0xffffff, 0x191919, 255);
+			kingthingsPetrockLight.drawString("[Save Details]", 343, 308 + rememberYOffset+15, 0xfec943, 0x191919, 255);
+			//kingthingsPetrockLight.drawString("Save Password?", 350, 308 + rememberYOffset+10, 0xffffff, 0x191919, 255);
+			final int btnX = (layoutWidth / 2) - 119 + 30 + 5 - 20 + 8 + 2+1-3-1;
+			final int btnY = (layoutHeight / 2) - 21 + 50 - 10 - 15 - 5 + 30 + 50;
 
-			if (!informationFile.isUsernameRemembered()) {
-				if (!rememberMeHover) {
-					loginAsset0.drawSprite(264, 295 + rememberYOffset);
-				} else {
-					loginAsset1.drawSprite(264, 295 + rememberYOffset);
-				}
+// Prefer the actual sprite dimensions
+			final int btnW = loginButtonStandard.myWidth;   // or loginButtonHovered.myWidth
+			final int btnH = loginButtonStandard.myHeight;  // or loginButtonHovered.myHeight
+
+			loginHover = mouseInRegion(btnX, btnY, btnX + btnW, btnY + btnH);
+
+			if (loginHover) {
+				loginButtonHovered.drawAdvancedSprite(btnX, btnY);
 			} else {
-				if (!rememberMeHover) {
-					loginAsset2.drawSprite(264, 295 + rememberYOffset);
-				} else {
-					loginAsset3.drawSprite(264, 295 + rememberYOffset);
-				}
+				loginButtonStandard.drawAdvancedSprite(btnX, btnY);
 			}
 
-			if (!informationFile.isPasswordRemembered()) {
-				if (!rememberPasswordHover) {
-					loginAsset0.drawSprite(395, 295 + rememberYOffset);
-				} else {
-					loginAsset1.drawSprite(395, 295 + rememberYOffset);
-				}
-			} else {
-				if (!rememberPasswordHover) {
-					loginAsset2.drawSprite(395, 295 + rememberYOffset);
-				} else {
-					loginAsset3.drawSprite(395, 295 + rememberYOffset);
-				}
-			}
+
+
+
+
+//			if (!informationFile.isUsernameRemembered()) {
+//				if (!rememberMeHover) {
+//					loginAsset0.drawSprite(264, 295 + rememberYOffset);
+//				} else {
+//					loginAsset1.drawSprite(264, 295 + rememberYOffset);
+//				}
+//			} else {
+//				if (!rememberMeHover) {
+//					loginAsset2.drawSprite(264, 295 + rememberYOffset);
+//				} else {
+//					loginAsset3.drawSprite(264, 295 + rememberYOffset);
+//				}
+//			}
+//
+//			if (!informationFile.isPasswordRemembered()) {
+//				if (!rememberPasswordHover) {
+//					loginAsset0.drawSprite(395, 295 + rememberYOffset);
+//				} else {
+//					loginAsset1.drawSprite(395, 295 + rememberYOffset);
+//				}
+//			} else {
+//				if (!rememberPasswordHover) {
+//					loginAsset2.drawSprite(395, 295 + rememberYOffset);
+//				} else {
+//					loginAsset3.drawSprite(395, 295 + rememberYOffset);
+//				}
+//			}
 
 			loginAsset4.drawARGBSprite2(layoutWidth / 2 - (336 / 2), 25 + rememberYOffset);
 
@@ -17815,12 +18443,11 @@ public class Client extends RSApplet {
 		int k1 = super.myHeight / 2 + 50;
 		k1 += 20;
 
-		if (super.clickMode3 == 1 && super.getSaveClickX() >= 231 && super.getSaveClickX() <= 376 && super.getSaveClickY() >= 323
-				&& super.getSaveClickY() <= 353) {
-
+		if (super.clickMode3 == 1 && loginHover) {
 			// loginScreenState = 3;
 			loginFailures = 0;
 			login(myUsername, getPassword(), false);
+			Sound.getSound().playSound(2266, SoundType.SOUND, 0);
 			if (loggedIn)
 				return;
 
@@ -18120,6 +18747,23 @@ public class Client extends RSApplet {
 		}
 
 	};
+	private static int extractInt(String s, String key) {
+		int idx = s.indexOf(key);
+		if (idx == -1) return 0;
+		idx += key.length();
+		int end = idx;
+		while (end < s.length() && (s.charAt(end) == '-' || Character.isDigit(s.charAt(end)))) end++;
+		return Integer.parseInt(s.substring(idx, end));
+	}
+
+	private static String extractToken(String s, String key) {
+		int idx = s.indexOf(key);
+		if (idx == -1) return null;
+		idx += key.length();
+		int end = s.indexOf(' ', idx);
+		if (end == -1) end = s.length();
+		return s.substring(idx, end);
+	}
 
 	private boolean parsePacket() {
 		if (socketStream == null)
@@ -18884,26 +19528,26 @@ public class Client extends RSApplet {
 					incomingPacket = -1;
 					return true;
 
-				case 250: { // WRATH_UPDATE (self) [wrath:u8]
-					int w = inStream.readUnsignedByte();
-
-					// Debug (remove later)
-					// System.out.println("[WRATH] self w=" + w);
-
-					if (myPlayer != null) {
-						myPlayer.pressure = w;
-
-						// smoothing: if we jump huge (teleport/login), snap to avoid flashing
-						if (Math.abs(myPlayer.pressureDisplayed - w) > 40) {
-							myPlayer.pressureDisplayed = w;
-						}
-
-						myPlayer.loopCycleStatus = loopCycle + 60;
-					}
-
-					incomingPacket = -1;
-					return true;
-				}
+//				case 250: { // WRATH_UPDATE (self) [wrath:u8]
+//					int w = inStream.readUnsignedByte();
+//
+//					// Debug (remove later)
+//					// System.out.println("[WRATH] self w=" + w);
+//
+//					if (myPlayer != null) {
+//						myPlayer.pressure = w;
+//
+//						// smoothing: if we jump huge (teleport/login), snap to avoid flashing
+//						if (Math.abs(myPlayer.pressureDisplayed - w) > 40) {
+//							myPlayer.pressureDisplayed = w;
+//						}
+//
+//						myPlayer.loopCycleStatus = loopCycle + 60;
+//					}
+//
+//					incomingPacket = -1;
+//					return true;
+//				}
 				case 252: { // CHANNEL_BAR
 					int type1 = inStream.readUnsignedByte();
 					int durationMs = inStream.readUShort();
@@ -18914,7 +19558,82 @@ public class Client extends RSApplet {
 
 				case 253:
 					String s = inStream.readString();
-					if (s.equals(":prayertrue:")) {
+					if (s.startsWith(":attrdbg:")) {
+
+						// tolerate begin / end markers with labels
+						if (s.startsWith(":attrdbg: begin") || s.startsWith(":attrdbg: end")) {
+							// optional debug
+							// System.out.println("[ATTRDBG] " + s);
+							incomingPacket = -1;
+							return true;
+						}
+
+						try {
+							// Expected format:
+							// :attrdbg: slot=0 id=4151 hash=490599149 r=1 p1=100:1 p2=0:0 if=3214
+
+							String payload = s.substring(":attrdbg:".length()).trim();
+
+							int slot   = extractInt(payload, "slot=");
+							int id2    = extractInt(payload, "id=");
+							int hash   = extractInt(payload, "hash=");
+							int rarity = extractInt(payload, "r=");
+
+							String p1 = extractToken(payload, "p1=");
+							String p2 = extractToken(payload, "p2=");
+
+							// NEW: interface id (inventory, bank tab, bank inv, etc)
+							int interfaceId = 3214; // fallback to inventory
+							try {
+								int parsedIf = extractInt(payload, "if=");
+								if (parsedIf > 0) interfaceId = parsedIf;
+							} catch (Exception ignored) {}
+
+							int perk1 = 0, perk1Rank = 0;
+							int perk2 = 0, perk2Rank = 0;
+
+							if (p1 != null && p1.contains(":")) {
+								String[] a = p1.split(":");
+								perk1 = Integer.parseInt(a[0]);
+								perk1Rank = Integer.parseInt(a[1]);
+							}
+							if (p2 != null && p2.contains(":")) {
+								String[] a = p2.split(":");
+								perk2 = Integer.parseInt(a[0]);
+								perk2Rank = Integer.parseInt(a[1]);
+							}
+
+							// IMPORTANT: clear stale attrs when hash == 0
+							if (slot >= 0) {
+								if (hash == 0) {
+									com.client.attributes.ItemAttrStore.clear(interfaceId, slot);
+								} else {
+									com.client.attributes.ItemAttrStore.Attr attr =
+											new com.client.attributes.ItemAttrStore.Attr();
+									attr.hash = hash;
+									attr.rarityId = rarity;
+									attr.perk1 = perk1;
+									attr.perk1Rank = perk1Rank;
+									attr.perk2 = perk2;
+									attr.perk2Rank = perk2Rank;
+
+									com.client.attributes.ItemAttrStore.put(interfaceId, slot, attr);
+								}
+							}
+
+							// optional debug
+							// System.out.println("[ATTRDBG] if=" + interfaceId + " slot=" + slot + " id=" + id2 + " hash=" + hash);
+
+						} catch (Exception e) {
+							System.out.println("[ATTRDBG] parse fail: " + s);
+							e.printStackTrace();
+						}
+
+						incomingPacket = -1;
+						return true;
+					}
+
+					 else if (s.equals(":prayertrue:")) {
 						prayClicked = true;
 					} else if (s.equals(":prayerfalse:")) {
 						prayClicked = false;
@@ -19402,27 +20121,33 @@ public class Client extends RSApplet {
 
 				case 53:
 					needDrawTabArea = true;
-					int i7 = inStream.readUShort();
-					RSInterface class9_1 = RSInterface.interfaceCache[i7];
-					int j19 = inStream.readUShort();
+					int interfaceId = inStream.readUShort();
+					RSInterface container = RSInterface.interfaceCache[interfaceId];
+					int containerSize = inStream.readUShort();
 
 					try {
-						//System.out.println("Item container size: " + j19);
-						for (int j22 = 0; j22 < j19; j22++) {
-							int i25 = inStream.readUnsignedByte();
-							if (i25 == 255) {
-								i25 = inStream.method440();
+						//System.out.println("Item container size: " + containerSize);
+						for (int slot = 0; slot < containerSize; slot++) {
+							int amount = inStream.readUnsignedByte();
+							if (amount == 255) {
+								amount = inStream.method440();
 							}
-							class9_1.inventoryItemId[j22] = inStream.method436();
-							class9_1.inventoryAmounts[j22] = i25;
-							//System.out.println(String.format("Added item [%d, %d] to container %d", class9_1.inv[j22], i25, i7));
+							container.inventoryItemId[slot] = inStream.method436();
+							container.inventoryAmounts[slot] = amount;
+
+// Vykna attrs: clear/mismatch protection when item changes in this slot
+							int stored = container.inventoryItemId[slot];
+							int realItemId = stored <= 0 ? 0 : (stored - 1);
+							com.client.attributes.ItemAttrStore.onSlotItemSet(interfaceId, slot, realItemId);
+							//System.out.println(String.format("Added item [%d, %d] to container %d", container.inv[slot], amount, interfaceId));
 						}
-						for (int j25 = j19; j25 < class9_1.inventoryItemId.length; j25++) {
-							class9_1.inventoryItemId[j25] = 0;
-							class9_1.inventoryAmounts[j25] = 0;
+						for (int clearSlot = containerSize; clearSlot < container.inventoryItemId.length; clearSlot++) {
+							container.inventoryItemId[clearSlot] = 0;
+							container.inventoryAmounts[clearSlot] = 0;
+							com.client.attributes.ItemAttrStore.onSlotItemSet(interfaceId, clearSlot, 0);
 						}
 					} catch (Exception e) {
-						System.err.println("Error in container " + i7 + ", length " + j19 + ", actual length " + class9_1.inventoryItemId.length);
+						System.err.println("Error in container " + interfaceId + ", length " + containerSize + ", actual length " + container.inventoryItemId.length);
 						e.printStackTrace();
 					}
 					incomingPacket = -1;
@@ -19860,28 +20585,32 @@ public class Client extends RSApplet {
 	public static int[] antialiasingOffsets;
 	public static float[] antialiasingDepth;
 
-    public void render3dWorld() {
-        anInt1265++;
+	public void render3dWorld() {
+		anInt1265++;
 		if (mainGameGraphicsBuffer != null) {
 			mainGameGraphicsBuffer.setCanvas();
 		}
-        method47(true);
-        method26(true);
-        method47(false);
-        method26(false);
-        method55();
-        method104();
+		// Hard clear entire frame to black (prevents trails/ghosting when buffers don't overwrite fully)
+		DrawingArea.defaultDrawingAreaSize();
+		DrawingArea.setAllPixelsToZero();
 
-        if (!inCutScene) {
-            int i = camAngleX;
-            if (field556 / 256 > i) {
-                i = field556 / 256;
-            }
-            if (aBooleanArray876[4] && anIntArray1203[4] + 128 > i) {
-                i = anIntArray1203[4] + 128;
-            }
+		method47(true);
+		method26(true);
+		method47(false);
+		method26(false);
+		method55();
+		method104();
 
-            int k = (viewRotation + viewRotationOffset) & 0x7ff;
+		if (!inCutScene) {
+			int i = camAngleX;
+			if (field556 / 256 > i) {
+				i = field556 / 256;
+			}
+			if (aBooleanArray876[4] && anIntArray1203[4] + 128 > i) {
+				i = anIntArray1203[4] + 128;
+			}
+
+			int k = (viewRotation + viewRotationOffset) & 0x7ff;
 			int cutsceneZoomBonus =
 					(inCutScene && currentScreenMode == ScreenMode.FIXED)
 							? CUTSCENE_FIXED_ZOOM_BONUS
@@ -19889,228 +20618,224 @@ public class Client extends RSApplet {
 
 			int effectiveCameraZoom = cameraZoom + cutsceneZoomBonus;
 
-            setCameraPos(
-                    cameraZoom + i * ((WorldController.viewDistance == 9) && (currentScreenMode == ScreenMode.RESIZABLE)
-                            ? 2
-                            : WorldController.viewDistance == 10 ? 5 : 3),
-                    i,
-                    anInt1014,
-                    getCenterHeight(plane, myPlayer.y, myPlayer.x) - 100,
-                    k,
-                    anInt1015
-            );
-        }
-
-        int j = !inCutScene ? method120() : method121();
-
-        int l = xCameraPos;
-        int i1 = zCameraPos;
-        int j1 = yCameraPos;
-        int k1 = yCameraCurve;
-        int l1 = xCameraCurve;
-
-        for (int i2 = 0; i2 < 5; i2++) {
-            if (aBooleanArray876[i2]) {
-                int j2 = (int) (
-                        (Math.random() * (anIntArray873[i2] * 2 + 1) - anIntArray873[i2])
-                                + Math.sin(anIntArray1030[i2] * (anIntArray928[i2] / 100D)) * anIntArray1203[i2]
-                );
-
-                if (i2 == 0) xCameraPos += j2;
-                if (i2 == 1) zCameraPos += j2;
-                if (i2 == 2) yCameraPos += j2;
-                if (i2 == 3) xCameraCurve = (xCameraCurve + j2) & 0x7ff;
-                if (i2 == 4) {
-                    yCameraCurve += j2;
-                    if (yCameraCurve < 128) yCameraCurve = 128;
-                    if (yCameraCurve > 383) yCameraCurve = 383;
-                }
-            }
-        }
-
-        int k2 = Rasterizer.lastTextureRetrievalCount;
-
-        Model.aBoolean1684 = true;
-        Model.obj_loaded = 0;
-        Model.anInt1685 = super.getMouseX() - 4;
-        Model.anInt1686 = super.getMouseY() - 4;
-
-        // ---- Anti-aliasing swap (safe + complete) ----
-        final boolean aa = getUserSettings().isAntiAliasing();
-
-        // Save original raster state
-        final int[] savedRasterPixels = Rasterizer.pixels;
-        final int[] savedDrawingPixels = DrawingArea.pixels;
-        final int[] savedLineOffsets = Rasterizer.anIntArray1472;
-
-        final int savedBottomX = Rasterizer.bottomX;
-        final int savedBottomY = Rasterizer.bottomY;
-
-        final int savedWidth = DrawingArea.width;
-        final int savedHeight = DrawingArea.height;
-        final int savedCenterX = DrawingArea.centerX;
-        final int savedCenterY = DrawingArea.centerY;
-        final int savedAnInt1387 = DrawingArea.anInt1387;
-
-        final int savedTex1 = Rasterizer.textureInt1;
-        final int savedTex2 = Rasterizer.textureInt2;
-
-        final int savedFocal = WorldController.focalLength;
-        final float[] savedDepth = Rasterizer.depthBuffer;
-        final float[] savedDrawingDepth = DrawingArea.depthBuffer;
-
-        if (aa) {
-            ensureAntiAliasingBuffers(savedWidth, savedHeight);
-
-            // Double input-space mouse + focal
-            Model.anInt1685 <<= 1;
-            Model.anInt1686 <<= 1;
-            WorldController.focalLength = savedFocal << 1;
-
-            // Swap pixels + line offsets for AA buffer
-            Rasterizer.pixels = antialiasingPixels;
-            DrawingArea.pixels = antialiasingPixels;
-            Rasterizer.anIntArray1472 = antialiasingOffsets;
-
-            // Switch depth buffer to AA-sized buffer
-            Rasterizer.depthBuffer = antialiasingDepth;
-            DrawingArea.depthBuffer = antialiasingDepth;
-
-            // Double raster bounds + drawing dimensions
-            Rasterizer.bottomX = savedBottomX << 1;
-            Rasterizer.bottomY = savedBottomY << 1;
-
-            DrawingArea.width = savedWidth << 1;
-            DrawingArea.height = savedHeight << 1;
-            DrawingArea.centerX = savedCenterX << 1;
-            DrawingArea.centerY = savedCenterY << 1;
-            DrawingArea.anInt1387 = savedAnInt1387 << 1;
-
-            Rasterizer.textureInt1 = savedTex1 << 1;
-            Rasterizer.textureInt2 = savedTex2 << 1;
-        } else {
-            // leave focalLength alone here; restoring savedFocal in finally keeps it stable
-        }
-
-        try {
-            com.client.features.particles.ParticlePostPass.beginFrame();
-
-            // Ensure depth writing is enabled for the scene
-            Rasterizer.saveDepth = true;
-
-            // Clear whichever depth buffer is currently active (AA or non-AA)
-            final float[] db = (Rasterizer.depthBuffer != null) ? Rasterizer.depthBuffer : DrawingArea.depthBuffer;
-            if (db != null) {
-                final float clear = getUserSettings().isFog()
-                        ? (WorldController.farZ * 90f + 1800f)
-                        : Float.POSITIVE_INFINITY;
-                java.util.Arrays.fill(db, clear);
-            }
-
-            DrawingArea.setAllPixelsToZero();
-
-            worldController.draw(xCameraPos, yCameraPos, xCameraCurve, zCameraPos, j, yCameraCurve);
-
-            if (getUserSettings().isFog()) {
-                currentFog = 0;
-                int begin = WorldController.farZ * 90;
-                Rasterizer.drawFog(SettingsManager.DEFAULT_FOG_COLOR, begin, begin + 1800);
-            }
-
-            // Draw particles AFTER the whole scene has populated the depth buffer
-            com.client.features.particles.ParticlePostPass.flush();
-
-        } finally {
-            // Restore always (even if draw crashes)
-            if (aa) {
-                Model.anInt1685 >>= 1;
-                Model.anInt1686 >>= 1;
-            }
-
-            // Restore depth buffers
-            Rasterizer.depthBuffer = savedDepth;
-            DrawingArea.depthBuffer = savedDrawingDepth;
-
-            // Restore focal length back to what it was before AA swap
-            WorldController.focalLength = savedFocal;
-
-            // Restore raster state
-            Rasterizer.pixels = savedRasterPixels;
-            DrawingArea.pixels = savedDrawingPixels;
-            Rasterizer.anIntArray1472 = savedLineOffsets;
-
-            Rasterizer.bottomX = savedBottomX;
-            Rasterizer.bottomY = savedBottomY;
-
-            DrawingArea.width = savedWidth;
-            DrawingArea.height = savedHeight;
-            DrawingArea.centerX = savedCenterX;
-            DrawingArea.centerY = savedCenterY;
-            DrawingArea.anInt1387 = savedAnInt1387;
-
-            Rasterizer.textureInt1 = savedTex1;
-            Rasterizer.textureInt2 = savedTex2;
-        }
-
-        // ---- Downsample AA buffer into normal buffer ----
-        if (aa) {
-            final int outW = DrawingArea.width;
-            final int outH = DrawingArea.height;
-            final int aaW = outW << 1;
-
-            for (int y = 0; y < outH; y++) {
-                final int y2 = y << 1;
-                final int row0 = y2 * aaW;
-                final int row1 = (y2 + 1) * aaW;
-                final int outRow = y * outW;
-
-                for (int x = 0; x < outW; x++) {
-                    final int x2 = x << 1;
-
-                    int c1 = antialiasingPixels[row0 + x2];
-                    int c2 = antialiasingPixels[row0 + x2 + 1];
-                    int c3 = antialiasingPixels[row1 + x2];
-                    int c4 = antialiasingPixels[row1 + x2 + 1];
-
-                    int r = ((c1 >> 16) & 0xFF) + ((c2 >> 16) & 0xFF) + ((c3 >> 16) & 0xFF) + ((c4 >> 16) & 0xFF);
-                    int g = ((c1 >> 8) & 0xFF) + ((c2 >> 8) & 0xFF) + ((c3 >> 8) & 0xFF) + ((c4 >> 8) & 0xFF);
-                    int b = (c1 & 0xFF) + (c2 & 0xFF) + (c3 & 0xFF) + (c4 & 0xFF);
-
-                    r >>= 2;
-                    g >>= 2;
-                    b >>= 2;
-
-                    DrawingArea.pixels[outRow + x] = (r << 16) | (g << 8) | b;
-                }
-            }
-        }
-
-        worldController.clearObj5Cache();
-
-        updateEntities();
-
-        drawHeadIcon();
-
-        writeBackgroundTexture(k2);
-		if (getUserSettings().isGroundItemOverlay()) {
-            displayGroundItems();
-        }
-
-		boolean useUiBuffer = uiGraphicsBuffer != null;
-		if (useUiBuffer) {
-			Rectangle viewport = getViewportBounds();
-			uiGraphicsBuffer.setCanvas();
-			DrawingArea.setAllPixelsToZero();
-			blitViewportToUiBuffer(viewport);
-			DrawingArea.defaultDrawingAreaSize();
+			setCameraPos(
+					cameraZoom + i * ((WorldController.viewDistance == 9) && (currentScreenMode == ScreenMode.RESIZABLE)
+							? 2
+							: WorldController.viewDistance == 10 ? 5 : 3),
+					i,
+					anInt1014,
+					getCenterHeight(plane, myPlayer.y, myPlayer.x) - 100,
+					k,
+					anInt1015
+			);
 		}
+
+		int j = !inCutScene ? method120() : method121();
+
+		int l = xCameraPos;
+		int i1 = zCameraPos;
+		int j1 = yCameraPos;
+		int k1 = yCameraCurve;
+		int l1 = xCameraCurve;
+
+		for (int i2 = 0; i2 < 5; i2++) {
+			if (aBooleanArray876[i2]) {
+				int j2 = (int) (
+						(Math.random() * (anIntArray873[i2] * 2 + 1) - anIntArray873[i2])
+								+ Math.sin(anIntArray1030[i2] * (anIntArray928[i2] / 100D)) * anIntArray1203[i2]
+				);
+
+				if (i2 == 0) xCameraPos += j2;
+				if (i2 == 1) zCameraPos += j2;
+				if (i2 == 2) yCameraPos += j2;
+				if (i2 == 3) xCameraCurve = (xCameraCurve + j2) & 0x7ff;
+				if (i2 == 4) {
+					yCameraCurve += j2;
+					if (yCameraCurve < 128) yCameraCurve = 128;
+					if (yCameraCurve > 383) yCameraCurve = 383;
+				}
+			}
+		}
+
+		int k2 = Rasterizer.lastTextureRetrievalCount;
+
+		Model.aBoolean1684 = true;
+		Model.obj_loaded = 0;
+		Model.anInt1685 = super.getMouseX() - 4;
+		Model.anInt1686 = super.getMouseY() - 4;
+
+		// ---- Anti-aliasing swap (safe + complete) ----
+		final boolean aa = getUserSettings().isAntiAliasing();
+
+		// Save original raster state
+		final int[] savedRasterPixels = Rasterizer.pixels;
+		final int[] savedDrawingPixels = DrawingArea.pixels;
+		final int[] savedLineOffsets = Rasterizer.anIntArray1472;
+
+		final int savedBottomX = Rasterizer.bottomX;
+		final int savedBottomY = Rasterizer.bottomY;
+
+		final int savedWidth = DrawingArea.width;
+		final int savedHeight = DrawingArea.height;
+		final int savedCenterX = DrawingArea.centerX;
+		final int savedCenterY = DrawingArea.centerY;
+		final int savedAnInt1387 = DrawingArea.anInt1387;
+
+		final int savedTex1 = Rasterizer.textureInt1;
+		final int savedTex2 = Rasterizer.textureInt2;
+
+		final int savedFocal = WorldController.focalLength;
+		final float[] savedDepth = Rasterizer.depthBuffer;
+		final float[] savedDrawingDepth = DrawingArea.depthBuffer;
+
+		if (aa) {
+			ensureAntiAliasingBuffers(savedWidth, savedHeight);
+
+			// Double input-space mouse + focal
+			Model.anInt1685 <<= 1;
+			Model.anInt1686 <<= 1;
+			WorldController.focalLength = savedFocal << 1;
+
+			// Swap pixels + line offsets for AA buffer
+			Rasterizer.pixels = antialiasingPixels;
+			DrawingArea.pixels = antialiasingPixels;
+			Rasterizer.anIntArray1472 = antialiasingOffsets;
+
+			// Switch depth buffer to AA-sized buffer
+			Rasterizer.depthBuffer = antialiasingDepth;
+			DrawingArea.depthBuffer = antialiasingDepth;
+
+			// Double raster bounds + drawing dimensions
+			Rasterizer.bottomX = savedBottomX << 1;
+			Rasterizer.bottomY = savedBottomY << 1;
+
+			DrawingArea.width = savedWidth << 1;
+			DrawingArea.height = savedHeight << 1;
+			DrawingArea.centerX = savedCenterX << 1;
+			DrawingArea.centerY = savedCenterY << 1;
+			DrawingArea.anInt1387 = savedAnInt1387 << 1;
+
+			Rasterizer.textureInt1 = savedTex1 << 1;
+			Rasterizer.textureInt2 = savedTex2 << 1;
+		} else {
+			// leave focalLength alone here; restoring savedFocal in finally keeps it stable
+		}
+
+		try {
+			com.client.features.particles.ParticlePostPass.beginFrame();
+
+			// Ensure depth writing is enabled for the scene
+			Rasterizer.saveDepth = true;
+
+			// Clear whichever depth buffer is currently active (AA or non-AA)
+			final float[] db = (Rasterizer.depthBuffer != null) ? Rasterizer.depthBuffer : DrawingArea.depthBuffer;
+			if (db != null) {
+				final float clear = getUserSettings().isFog()
+						? (WorldController.farZ * 90f + 1800f)
+						: Float.POSITIVE_INFINITY;
+				java.util.Arrays.fill(db, clear);
+			}
+
+			DrawingArea.setAllPixelsToZero();
+
+			worldController.draw(xCameraPos, yCameraPos, xCameraCurve, zCameraPos, j, yCameraCurve);
+
+			if (getUserSettings().isFog()) {
+				currentFog = 0;
+				int begin = WorldController.farZ * 90;
+				Rasterizer.drawFog(SettingsManager.DEFAULT_FOG_COLOR, begin, begin + 1800);
+			}
+
+			// Draw particles AFTER the whole scene has populated the depth buffer
+			com.client.features.particles.ParticlePostPass.flush();
+
+		} finally {
+			// Restore always (even if draw crashes)
+			if (aa) {
+				Model.anInt1685 >>= 1;
+				Model.anInt1686 >>= 1;
+			}
+
+			// Restore depth buffers
+			Rasterizer.depthBuffer = savedDepth;
+			DrawingArea.depthBuffer = savedDrawingDepth;
+
+			// Restore focal length back to what it was before AA swap
+			WorldController.focalLength = savedFocal;
+
+			// Restore raster state
+			Rasterizer.pixels = savedRasterPixels;
+			DrawingArea.pixels = savedDrawingPixels;
+			Rasterizer.anIntArray1472 = savedLineOffsets;
+
+			Rasterizer.bottomX = savedBottomX;
+			Rasterizer.bottomY = savedBottomY;
+
+			DrawingArea.width = savedWidth;
+			DrawingArea.height = savedHeight;
+			DrawingArea.centerX = savedCenterX;
+			DrawingArea.centerY = savedCenterY;
+			DrawingArea.anInt1387 = savedAnInt1387;
+
+			Rasterizer.textureInt1 = savedTex1;
+			Rasterizer.textureInt2 = savedTex2;
+		}
+
+		// ---- Downsample AA buffer into normal buffer ----
+		if (aa) {
+			final int outW = DrawingArea.width;
+			final int outH = DrawingArea.height;
+			final int aaW = outW << 1;
+
+			for (int y = 0; y < outH; y++) {
+				final int y2 = y << 1;
+				final int row0 = y2 * aaW;
+				final int row1 = (y2 + 1) * aaW;
+				final int outRow = y * outW;
+
+				for (int x = 0; x < outW; x++) {
+					final int x2 = x << 1;
+
+					int c1 = antialiasingPixels[row0 + x2];
+					int c2 = antialiasingPixels[row0 + x2 + 1];
+					int c3 = antialiasingPixels[row1 + x2];
+					int c4 = antialiasingPixels[row1 + x2 + 1];
+
+					int r = ((c1 >> 16) & 0xFF) + ((c2 >> 16) & 0xFF) + ((c3 >> 16) & 0xFF) + ((c4 >> 16) & 0xFF);
+					int g = ((c1 >> 8) & 0xFF) + ((c2 >> 8) & 0xFF) + ((c3 >> 8) & 0xFF) + ((c4 >> 8) & 0xFF);
+					int b = (c1 & 0xFF) + (c2 & 0xFF) + (c3 & 0xFF) + (c4 & 0xFF);
+
+					r >>= 2;
+					g >>= 2;
+					b >>= 2;
+
+					DrawingArea.pixels[outRow + x] = (r << 16) | (g << 8) | b;
+				}
+			}
+		}
+
+		worldController.clearObj5Cache();
+
+		updateEntities();
+
+		drawHeadIcon();
+
+		writeBackgroundTexture(k2);
+		if (getUserSettings().isGroundItemOverlay()) {
+			displayGroundItems();
+		}
+
+		boolean useUiBuffer = uiGraphicsBuffer != null && isRs3InterfaceStyle() && currentScreenMode != ScreenMode.FIXED;
 
 		if (loggedIn) {
 			if (!inCutScene) {
 				if (loginScreenGraphicsBuffer == null && currentScreenMode != ScreenMode.FIXED) {
 					if (isRs3InterfaceStyle()) {
-						DrawingArea.defaultDrawingAreaSize();
-						drawRs3Panels();
+						// If we don't have a UI composite buffer, draw RS3 panels directly into main.
+						if (!useUiBuffer) {
+							DrawingArea.defaultDrawingAreaSize();
+							drawRs3Panels();
+						}
 					} else {
 						drawMinimap();
 						drawTabArea();
@@ -20119,24 +20844,54 @@ public class Client extends RSApplet {
 				}
 			}
 			draw3dScreen();
+			// draw3dScreen/viewport rendering may leave a clipped DrawingArea - reset before UI
+			DrawingArea.defaultDrawingAreaSize();
+
 			if (isRs3InterfaceStyle()) {
-				DrawingArea.defaultDrawingAreaSize();
-				drawRs3Overlays();
+				// If we don't have a UI composite buffer, draw RS3 overlays directly into main.
+				if (!useUiBuffer) {
+					DrawingArea.defaultDrawingAreaSize();
+					drawRs3Overlays();
+				}
 			}
 		}
 
-        processExperienceCounter();
-		GraphicsBuffer targetBuffer = useUiBuffer ? uiGraphicsBuffer : mainGameGraphicsBuffer;
-		if (targetBuffer != null) {
-			targetBuffer.drawGraphics(0, super.graphics, 0);
+		processExperienceCounter();
+
+		if (useUiBuffer) {
+			// Compose final frame into the UI buffer:
+			// 1) Copy the complete main frame into uiGraphicsBuffer
+			copyMainToUiBuffer();
+
+			// 2) Draw RS3 UI on top into uiGraphicsBuffer
+			uiGraphicsBuffer.setCanvas();
+			DrawingArea.defaultDrawingAreaSize();
+
+			DrawingArea.defaultDrawingAreaSize();
+			drawRs3Panels();
+			drawRs3Overlays();
+
+			// 3) Restore canvas back to main for safety
+			if (mainGameGraphicsBuffer != null) {
+				mainGameGraphicsBuffer.setCanvas();
+				DrawingArea.defaultDrawingAreaSize();
+			}
+
+			// Present UI-composited frame
+			uiGraphicsBuffer.drawGraphics(0, super.graphics, 0);
+		} else {
+			// Present normal frame
+			if (mainGameGraphicsBuffer != null) {
+				mainGameGraphicsBuffer.drawGraphics(0, super.graphics, 0);
+			}
 		}
 
-        xCameraPos = l;
-        zCameraPos = i1;
-        yCameraPos = j1;
-        yCameraCurve = k1;
-        xCameraCurve = l1;
-    }
+		xCameraPos = l;
+		zCameraPos = i1;
+		yCameraPos = j1;
+		yCameraCurve = k1;
+		xCameraCurve = l1;
+	}
 
 
 

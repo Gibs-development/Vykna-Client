@@ -54,12 +54,11 @@ final class SizeConstants {
 			2, -2, 0, 5, 0, 0, 6, 0, 4, 3, //240 - 249
 			0, 0, 0, -1, 6, 0, 0, //250 - 255
     };
-
 	static {
-		packetSizes[251] = 1;
+		packetSizes[250] = -2;
 	}
 	static {
-		packetSizes[252] = 3; // CHANNEL_BAR: [type:u8][durationMs:u16]
+		packetSizes[252] = -2; // CHANNEL_BAR: [type:u8][durationMs:u16]
 	}
 
 
@@ -78,10 +77,5 @@ final class SizeConstants {
 //		}
 //	}
 
-
-    static {
-        // Custom opcode: Wrath update (wrath:u8) (self-only)
-        packetSizes[250] = 1;
-    }
 
 }

@@ -506,7 +506,7 @@ public final class NpcDefinition {
 		}
 
 		if (i==7413) {
-		    entityDef.name = "Max Dummy";
+		    entityDef.name = "Max-Hit Dummy";
 		    entityDef.actions[0] = null;
 		}
 		if(i==9011){
